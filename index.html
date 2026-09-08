@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Carroyage">
+<meta name="theme-color" content="#12161A">
+<title>Carroyage PH</title>
+<style>
+  :root{
+    --bg:#12161A; --panel:#1B2126; --panel-2:#232B31; --hair:#303A41;
+    --ink:#E6ECF0; --mute:#8B99A3; --signal:#FF4B33; --signal-dim:#7A2418;
+    --ok:#3FB27F; --pad:14px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink)}
+  body{font-family:ui-sans-serif,system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:15px;line-height:1.45;padding-bottom:env(safe-area-inset-bottom);
+    overscroll-behavior-y:contain}
+  .num{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+
+  header{display:flex;align-items:baseline;gap:10px;
+    padding:calc(env(safe-area-inset-top) + 10px) var(--pad) 10px;
+    border-bottom:1px solid var(--hair);position:relative}
+  header h1{font-size:15px;font-weight:650;margin:0;letter-spacing:.04em}
+  header .sub{font-size:12px;color:var(--mute)}
+  header::after{content:"";position:absolute;left:0;bottom:-1px;width:56px;height:2px;background:var(--signal)}
+
+  .stage{position:sticky;top:0;z-index:20;background:var(--bg);
+    border-bottom:1px solid var(--hair);padding:10px var(--pad)}
+  .frame{position:relative;border:1px solid var(--hair);min-height:110px;
+    display:flex;align-items:center;justify-content:center;
+    background:repeating-linear-gradient(45deg,#171C21 0 8px,#141A1F 8px 16px)}
+  canvas#preview{display:block;width:100%;height:auto;touch-action:pan-y}
+  canvas#preview.picking{touch-action:none}
+  .empty{padding:32px 18px;text-align:center;color:var(--mute);font-size:13.5px;max-width:34ch}
+
+  #loupe{position:absolute;width:132px;height:132px;border-radius:50%;
+    border:2px solid var(--ink);box-shadow:0 6px 24px rgba(0,0,0,.6);
+    overflow:hidden;pointer-events:none;display:none;z-index:30;background:#000}
+  #loupe canvas{display:block;width:132px;height:132px}
+
+  .stagebar{display:flex;gap:8px;align-items:center;margin-top:8px;
+    font-size:12.5px;color:var(--mute);min-height:24px}
+  .stagebar strong{color:var(--signal);font-weight:600}
+  .grow{flex:1}
+
+  main{padding:0 var(--pad) 96px}
+  section{border-bottom:1px solid var(--hair);padding:16px 0}
+  section:last-of-type{border-bottom:0}
+  .shead{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
+  .shead .idx{font-size:11.5px;color:var(--signal);border:1px solid var(--signal-dim);
+    width:22px;height:22px;display:grid;place-items:center;flex:none}
+  .shead h2{font-size:14px;margin:0;font-weight:600;letter-spacing:.02em;flex:1}
+  .shead .state{font-size:12px;color:var(--mute)}
+  .sbody{padding-top:14px;display:grid;gap:14px}
+  .sbody[hidden]{display:none}
+
+  label.field{display:grid;gap:6px}
+  label.field > span{font-size:12.5px;color:var(--mute)}
+  input[type=text],input[type=number],select{width:100%;background:var(--panel);
+    border:1px solid var(--hair);color:var(--ink);padding:11px 12px;font-size:16px;
+    border-radius:2px;font-family:inherit}
+  input:focus,select:focus,button:focus-visible{outline:2px solid var(--signal);outline-offset:1px}
+  .row{display:flex;gap:10px}
+  .row > *{flex:1;min-width:0}
+
+  .slider{display:grid;gap:4px}
+  .slider .top{display:flex;justify-content:space-between;font-size:12.5px;color:var(--mute)}
+  .slider .top b{color:var(--ink);font-weight:600}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:34px;background:transparent;margin:0}
+  input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--hair)}
+  input[type=range]::-moz-range-track{height:2px;background:var(--hair)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;
+    background:var(--panel-2);border:1px solid var(--ink);border-radius:50%;margin-top:-12px}
+  input[type=range]::-moz-range-thumb{width:26px;height:26px;background:var(--panel-2);
+    border:1px solid var(--ink);border-radius:50%}
+
+  button{font-family:inherit;font-size:14px;color:var(--ink);background:var(--panel-2);
+    border:1px solid var(--hair);padding:12px 14px;border-radius:2px;cursor:pointer;min-height:46px}
+  button:active{background:#2C363D}
+  button.primary{background:var(--signal);border-color:var(--signal);color:#12161A;font-weight:650}
+  button.ghost{background:transparent}
+  button.danger{color:#FF8E7C;border-color:#4A2A24}
+  button[disabled]{opacity:.4;pointer-events:none}
+
+  .swatches{display:flex;gap:8px}
+  .sw{width:40px;height:40px;border:1px solid var(--hair);border-radius:2px;padding:0;flex:none;min-height:0}
+  .sw[aria-pressed=true]{outline:2px solid var(--ink);outline-offset:1px}
+
+  .seg{display:flex;border:1px solid var(--hair);border-radius:2px;overflow:hidden}
+  .seg button{flex:1;border:0;border-right:1px solid var(--hair);border-radius:0;
+    background:transparent;font-size:13.5px}
+  .seg button:last-child{border-right:0}
+  .seg button[aria-pressed=true]{background:var(--panel-2);box-shadow:inset 0 -2px 0 var(--signal)}
+
+  .readout{background:var(--panel);border:1px solid var(--hair);border-left:3px solid var(--signal);
+    padding:10px 12px;font-size:13px;color:var(--mute)}
+  .readout b{color:var(--ink);font-weight:650}
+
+  ul.marks{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+  ul.marks li{display:flex;align-items:center;gap:10px;background:var(--panel);
+    border:1px solid var(--hair);padding:10px 12px}
+  ul.marks .d{font-weight:650;font-size:15px;min-width:70px}
+  ul.marks .r{color:var(--mute);font-size:12.5px;flex:1}
+  ul.marks button{min-height:34px;padding:6px 10px;font-size:12.5px}
+  .hint{color:var(--mute);font-size:12.5px}
+
+  .editor{position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--panel);
+    border-top:1px solid var(--hair);padding:14px var(--pad) calc(14px + env(safe-area-inset-bottom));
+    display:grid;gap:12px;box-shadow:0 -18px 40px rgba(0,0,0,.5)}
+  .editor[hidden]{display:none}
+  .editor .eh{font-size:13px;color:var(--mute)}
+
+  .bar{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;gap:10px;
+    padding:10px var(--pad) calc(10px + env(safe-area-inset-bottom));
+    background:linear-gradient(to top,var(--bg) 70%,rgba(18,22,26,0))}
+  .bar button{flex:1}
+  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:96px;z-index:80;
+    background:var(--panel-2);border:1px solid var(--hair);border-left:3px solid var(--ok);
+    padding:10px 14px;font-size:13.5px;max-width:90vw}
+  .toast[hidden]{display:none}
+</style>
+</head>
+<body>
+
+<header><h1>Carroyage PH</h1><span class="sub">panoramique → grille → PDF</span></header>
+
+<div class="stage">
+  <div class="frame" id="frame">
+    <p class="empty" id="emptyMsg">Charge la photo panoramique de la zone tenue par le point haut.</p>
+    <canvas id="preview" hidden></canvas>
+    <div id="loupe"><canvas id="loupeCv" width="132" height="132"></canvas></div>
+  </div>
+  <div class="stagebar"><span id="statusText">Aucune photo</span><span class="grow"></span></div>
+</div>
+
+<main>
+  <section>
+    <div class="shead" data-toggle="s1"><span class="idx num">1</span><h2>Photo et cadrage</h2><span class="state" id="st1">—</span></div>
+    <div class="sbody" id="s1">
+      <button id="btnLoad">Choisir la photo panoramique</button>
+      <input type="file" id="file" accept="image/*" hidden>
+      <div class="row">
+        <div class="slider"><div class="top"><span>Rogner à gauche</span><b class="num" id="vCropL">0%</b></div><input type="range" id="cropL" min="0" max="40" value="0"></div>
+        <div class="slider"><div class="top"><span>À droite</span><b class="num" id="vCropR">0%</b></div><input type="range" id="cropR" min="0" max="40" value="0"></div>
+      </div>
+      <div class="row">
+        <div class="slider"><div class="top"><span>En haut</span><b class="num" id="vCropT">0%</b></div><input type="range" id="cropT" min="0" max="40" value="0"></div>
+        <div class="slider"><div class="top"><span>En bas</span><b class="num" id="vCropB">0%</b></div><input type="range" id="cropB" min="0" max="40" value="0"></div>
+      </div>
+      <div class="hint">Les bords fuyants d'un panoramique se rattrapent ici. La grille se recalcule à chaque ajustement.</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="shead" data-toggle="s2"><span class="idx num">2</span><h2>Identification</h2><span class="state" id="st2">—</span></div>
+    <div class="sbody" id="s2">
+      <label class="field"><span>Titre — adresse ou nom de la zone</span>
+        <input type="text" id="title" placeholder="135 Bd du Montparnasse" autocomplete="off"></label>
+      <div class="row">
+        <label class="field"><span>Point haut</span><input type="text" id="ph" placeholder="PH 2" autocomplete="off"></label>
+        <label class="field"><span>Date</span><input type="text" id="date" autocomplete="off"></label>
+      </div>
+      <label class="field"><span>Mention de pied de planche</span>
+        <input type="text" id="note" placeholder="À restituer en fin de mission" autocomplete="off"></label>
+    </div>
+  </section>
+
+  <section>
+    <div class="shead" data-toggle="s3"><span class="idx num">3</span><h2>Grille</h2><span class="state num" id="st3">—</span></div>
+    <div class="sbody" id="s3">
+      <div class="seg" role="group" aria-label="Calcul de la grille">
+        <button id="modeAuto" aria-pressed="true">Automatique</button>
+        <button id="modeMan" aria-pressed="false">Manuel</button>
+      </div>
+      <div id="autoWrap" class="slider">
+        <div class="top"><span>Finesse — hauteur des cases</span><b class="num" id="vFine">18</b></div>
+        <input type="range" id="fine" min="10" max="30" value="18">
+      </div>
+      <div id="manWrap" hidden style="display:grid;gap:14px">
+        <div class="slider"><div class="top"><span>Colonnes</span><b class="num" id="vCols">40</b></div><input type="range" id="cols" min="8" max="80" value="40"></div>
+        <div class="slider"><div class="top"><span>Lignes</span><b class="num" id="vRows">18</b></div><input type="range" id="rows" min="4" max="40" value="18"></div>
+      </div>
+      <div class="readout" id="gridInfo">Charge une photo pour calculer la grille.</div>
+      <div class="slider"><div class="top"><span>Épaisseur du trait</span><b class="num" id="vWeight">1,0</b></div><input type="range" id="weight" min="4" max="30" value="10"></div>
+      <div class="slider"><div class="top"><span>Opacité</span><b class="num" id="vOpacity">85%</b></div><input type="range" id="opacity" min="20" max="100" value="85"></div>
+      <label class="field"><span>Couleur de la grille</span><div class="swatches" id="gridColors"></div></label>
+    </div>
+  </section>
+
+  <section>
+    <div class="shead" data-toggle="s4"><span class="idx num">4</span><h2>Distances télémètre</h2><span class="state num" id="st4">0</span></div>
+    <div class="sbody" id="s4">
+      <button id="btnAdd">Placer un relevé</button>
+      <div class="hint">Deux appuis : d'abord le point mesuré, puis l'endroit dégagé où poser la valeur. Fais glisser le doigt sans relâcher, la loupe t'aide à viser.</div>
+      <ul class="marks" id="markList"></ul>
+      <label class="field"><span>Couleur des relevés</span><div class="swatches" id="markColors"></div></label>
+    </div>
+  </section>
+
+  <section>
+    <div class="shead" data-toggle="s5"><span class="idx num">5</span><h2>Export</h2><span class="state" id="st5">A4 paysage</span></div>
+    <div class="sbody" id="s5">
+      <label class="field"><span>Format de page</span>
+        <select id="page">
+          <option value="a4l">A4 paysage</option>
+          <option value="a3l">A3 paysage</option>
+          <option value="fit">Page au format de la planche</option>
+        </select></label>
+      <div class="hint">Le PDF part dans les fichiers du téléphone : imprimable ou transmissible en l'état.</div>
+    </div>
+  </section>
+</main>
+
+<div class="editor" id="editor" hidden>
+  <div class="eh" id="edHead">Relevé télémètre</div>
+  <label class="field"><span>Distance mesurée</span>
+    <div class="row">
+      <input type="number" id="edDist" inputmode="decimal" placeholder="83" step="1">
+      <select id="edUnit"><option value="m">m</option><option value="yd">yd</option></select>
+    </div></label>
+  <label class="field"><span>Libellé sous la valeur — facultatif</span>
+    <input type="text" id="edLabel" placeholder="Toit immeuble d'angle" autocomplete="off"></label>
+  <div class="row">
+    <button class="ghost" id="edCancel">Annuler</button>
+    <button class="primary" id="edOk">Enregistrer</button>
+  </div>
+</div>
+
+<div class="bar" id="bar">
+  <button id="btnPng" disabled>Image PNG</button>
+  <button class="primary" id="btnPdf" disabled>Générer le PDF</button>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+const S={
+  img:null,natW:0,natH:0,
+  crop:{l:0,r:0,t:0,b:0},
+  title:"",ph:"",date:"",note:"",
+  auto:true, fine:18, cols:40, rows:18,
+  weight:1.0, opacity:.85, color:"#E11414", markColor:"#16307A",
+  marks:[], page:"a4l",
+  step:0,           // 0 = inactif, 1 = point mesuré, 2 = ancrage valeur
+  draft:null, editIndex:-1
+};
+
+function rowLabel(i){let s="",n=i;do{s=String.fromCharCode(65+(n%26))+s;n=Math.floor(n/26)-1;}while(n>=0);return s;}
+
+/* ---------- Géométrie ---------- */
+function cropped(){
+  const {l,r,t,b}=S.crop;
+  return {sx:S.natW*l/100, sy:S.natH*t/100,
+          sw:Math.max(20,S.natW*(1-(l+r)/100)), sh:Math.max(20,S.natH*(1-(t+b)/100))};
+}
+function gridDims(){
+  const c=cropped(), a=c.sw/c.sh;
+  if(!S.auto) return {cols:S.cols, rows:S.rows};
+  const rows=S.fine;
+  let cols=Math.round(rows*a/5)*5;
+  cols=clamp(cols||5,5,120);
+  return {cols,rows};
+}
+function layout(){
+  const c=cropped(), iw=c.sw, ih=c.sh;
+  const {cols,rows}=gridDims();
+  const cell=Math.max(iw/cols, ih/rows);
+  const gut=clamp(cell*1.0, ih*0.030, ih*0.075);
+  const pad=gut*0.55;
+  const titleH = S.title.trim() ? gut*2.5 : 0;
+  const footTxt=[S.ph,S.date,S.note].filter(x=>x&&x.trim()).join("   ·   ");
+  const footH = footTxt ? gut*1.5 : 0;
+  return {c,iw,ih,cols,rows,gut,pad,titleH,footH,footTxt,
+    ox:pad+gut, oy:pad+titleH+gut,
+    W:iw+2*gut+2*pad, H:ih+2*gut+2*pad+titleH+footH};
+}
+function toDisp(nx,ny,L){
+  const {l,r,t,b}=S.crop;
+  const u=(nx*100-l)/(100-l-r), v=(ny*100-t)/(100-t-b);
+  if(u<-0.02||u>1.02||v<-0.02||v>1.02) return null;
+  return {x:L.ox+u*L.iw, y:L.oy+v*L.ih, u, v};
+}
+function cellOf(nx,ny,L){
+  const p=toDisp(nx,ny,L); if(!p) return "hors cadre";
+  return rowLabel(clamp(Math.floor(p.v*L.rows),0,L.rows-1))+(clamp(Math.floor(p.u*L.cols),0,L.cols-1)+1);
+}
+function fmtDist(m){
+  const s=Number.isInteger(m.dist)?String(m.dist):String(m.dist).replace(".",",");
+  return s+(m.unit==="yd"?" yd":" m");
+}
+
+/* ---------- Rendu ---------- */
+function draw(ctx,scale,L){
+  const {iw,ih,cols,rows,gut,pad,titleH,footH,footTxt,ox,oy,W,H}=L;
+  ctx.save();
+  ctx.setTransform(scale,0,0,scale,0,0);
+  ctx.imageSmoothingQuality="high";
+  ctx.fillStyle="#FFF"; ctx.fillRect(0,0,W,H);
+
+  if(titleH){
+    ctx.fillStyle="#0A0A0A"; ctx.textAlign="center"; ctx.textBaseline="middle";
+    let fs=gut*1.75, fam='ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial, sans-serif';
+    ctx.font=`700 ${fs}px ${fam}`;
+    while(ctx.measureText(S.title).width>W-2*pad && fs>8){fs*=0.94;ctx.font=`700 ${fs}px ${fam}`;}
+    ctx.fillText(S.title,W/2,pad+titleH*0.55);
+  }
+
+  ctx.drawImage(S.img,L.c.sx,L.c.sy,L.c.sw,L.c.sh,ox,oy,iw,ih);
+
+  const lw=Math.max(iw/2200,0.6)*S.weight*1.6;
+  ctx.globalAlpha=S.opacity; ctx.strokeStyle=S.color; ctx.lineWidth=lw;
+  ctx.beginPath();
+  for(let i=0;i<=cols;i++){const x=ox+iw*i/cols;ctx.moveTo(x,oy-gut);ctx.lineTo(x,oy+ih+gut);}
+  for(let j=0;j<=rows;j++){const y=oy+ih*j/rows;ctx.moveTo(ox-gut,y);ctx.lineTo(ox+iw+gut,y);}
+  ctx.stroke();
+  ctx.lineWidth=lw*2; ctx.strokeRect(ox-gut,oy-gut,iw+2*gut,ih+2*gut);
+  ctx.globalAlpha=1;
+
+  ctx.fillStyle=S.color; ctx.textAlign="center"; ctx.textBaseline="middle";
+  const mono='ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+  ctx.font=`700 ${Math.min(gut*0.62,(iw/cols)*0.72)}px ${mono}`;
+  for(let i=0;i<cols;i++){const x=ox+iw*(i+0.5)/cols;
+    ctx.fillText(String(i+1),x,oy-gut/2); ctx.fillText(String(i+1),x,oy+ih+gut/2);}
+  ctx.font=`700 ${Math.min(gut*0.62,(ih/rows)*0.82)}px ${mono}`;
+  for(let j=0;j<rows;j++){const y=oy+ih*(j+0.5)/rows;
+    ctx.fillText(rowLabel(j),ox-gut/2,y); ctx.fillText(rowLabel(j),ox+iw+gut/2,y);}
+
+  S.marks.forEach(m=>drawMark(ctx,m,L));
+
+  if(footH){
+    ctx.fillStyle="#3A3A3A"; ctx.textAlign="left";
+    ctx.font=`500 ${gut*0.62}px ui-sans-serif, system-ui, Arial, sans-serif`;
+    ctx.fillText(footTxt,pad+gut,H-pad-footH*0.45);
+    ctx.textAlign="right";
+    ctx.fillText(`${cols} × ${rows}`,W-pad-gut,H-pad-footH*0.45);
+  }
+  ctx.restore();
+}
+
+function drawMark(ctx,m,L){
+  const a=toDisp(m.x,m.y,L), b=toDisp(m.lx,m.ly,L);
+  if(!a||!b) return;
+  const col=S.markColor;
+  const stroke=Math.max(L.iw/900,1.2)*2.2;
+  const fs=Math.max(L.gut*1.05,L.ih*0.035);
+
+  ctx.lineCap="round"; ctx.lineJoin="round";
+  ctx.strokeStyle="rgba(255,255,255,.85)"; ctx.lineWidth=stroke*2.1;
+  ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+  ctx.strokeStyle=col; ctx.lineWidth=stroke;
+  ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+
+  const r=stroke*2.2;
+  ctx.beginPath(); ctx.arc(a.x,a.y,r,0,7);
+  ctx.fillStyle="rgba(255,255,255,.9)"; ctx.fill();
+  ctx.lineWidth=stroke*0.9; ctx.strokeStyle=col; ctx.stroke();
+
+  const dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy)||1;
+  const uy=dy/len;
+  const txt=fmtDist(m);
+  ctx.font=`800 ${fs}px ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial, sans-serif`;
+  ctx.textAlign="center";
+  ctx.textBaseline = uy<0 ? "alphabetic" : "hanging";
+  const tw=ctx.measureText(txt).width;
+  const tx=clamp(b.x,L.ox+tw/2+4,L.ox+L.iw-tw/2-4);
+  const ty=b.y+(uy<0?-fs*0.30:fs*0.30);
+  ctx.strokeStyle="rgba(255,255,255,.92)"; ctx.lineWidth=fs*0.20;
+  ctx.strokeText(txt,tx,ty); ctx.fillStyle=col; ctx.fillText(txt,tx,ty);
+
+  if(m.label){
+    const f2=fs*0.5;
+    ctx.font=`600 ${f2}px ui-sans-serif, system-ui, Arial, sans-serif`;
+    const w2=ctx.measureText(m.label).width;
+    const x2=clamp(b.x,L.ox+w2/2+4,L.ox+L.iw-w2/2-4);
+    const y2=ty+(uy<0?-fs*0.95:fs*1.15);
+    ctx.strokeStyle="rgba(255,255,255,.92)"; ctx.lineWidth=f2*0.26;
+    ctx.strokeText(m.label,x2,y2); ctx.fillStyle=col; ctx.fillText(m.label,x2,y2);
+  }
+}
+
+/* ---------- Aperçu ---------- */
+const prev=$("preview"), pctx=prev.getContext("2d");
+let pScale=1, pDpr=1, L0=null;
+
+function render(){
+  if(!S.img) return;
+  const L=layout(); L0=L;
+  const cssW=$("frame").clientWidth;
+  pDpr=Math.min(window.devicePixelRatio||1,2.5);
+  pScale=cssW/L.W;
+  prev.width=Math.round(L.W*pScale*pDpr);
+  prev.height=Math.round(L.H*pScale*pDpr);
+  prev.style.height=(L.H*pScale)+"px";
+  draw(pctx,pScale*pDpr,L);
+  if(S.draft) drawDraft(L);
+  syncMarks(L);
+  $("st3").textContent=`${L.cols} × ${L.rows}`;
+  $("st4").textContent=String(S.marks.length);
+  const cellW=(L.iw/L.cols)/S.natW*100;
+  $("gridInfo").innerHTML=`<b>${L.cols} colonnes × ${L.rows} lignes</b> — cases carrées à ${(100*Math.abs(1-(L.iw/L.cols)/(L.ih/L.rows))).toFixed(1)} % près. Repères 1→${L.cols} et A→${rowLabel(L.rows-1)}.`;
+}
+
+function drawDraft(L){
+  const d=S.draft; if(!d) return;
+  pctx.save(); pctx.setTransform(pScale*pDpr,0,0,pScale*pDpr,0,0);
+  const a=toDisp(d.x,d.y,L);
+  if(a){
+    pctx.strokeStyle="#FF4B33"; pctx.lineWidth=L.iw/500;
+    pctx.beginPath(); pctx.arc(a.x,a.y,L.iw/110,0,7); pctx.stroke();
+    pctx.beginPath();
+    pctx.moveTo(a.x-L.iw/40,a.y); pctx.lineTo(a.x+L.iw/40,a.y);
+    pctx.moveTo(a.x,a.y-L.iw/40); pctx.lineTo(a.x,a.y+L.iw/40);
+    pctx.stroke();
+    if(d.lx!=null){
+      const b=toDisp(d.lx,d.ly,L);
+      if(b){pctx.setLineDash([L.iw/120,L.iw/160]);
+        pctx.beginPath(); pctx.moveTo(a.x,a.y); pctx.lineTo(b.x,b.y); pctx.stroke();
+        pctx.setLineDash([]);}
+    }
+  }
+  pctx.restore();
+}
+
+/* ---------- Chargement ---------- */
+$("btnLoad").onclick=()=>$("file").click();
+$("file").onchange=e=>{
+  const f=e.target.files&&e.target.files[0]; if(!f) return;
+  const url=URL.createObjectURL(f), im=new Image();
+  im.onload=()=>{
+    const MAX=6000, k=Math.min(1,MAX/Math.max(im.naturalWidth,im.naturalHeight));
+    const cv=document.createElement("canvas");
+    cv.width=Math.round(im.naturalWidth*k); cv.height=Math.round(im.naturalHeight*k);
+    const c2=cv.getContext("2d"); c2.imageSmoothingQuality="high";
+    c2.drawImage(im,0,0,cv.width,cv.height);
+    S.img=cv; S.natW=cv.width; S.natH=cv.height;
+    URL.revokeObjectURL(url);
+    $("emptyMsg").hidden=true; prev.hidden=false;
+    $("btnPng").disabled=false; $("btnPdf").disabled=false;
+    $("st1").textContent=`${im.naturalWidth}×${im.naturalHeight}`;
+    $("statusText").textContent="Photo chargée";
+    $("btnLoad").textContent="Remplacer la photo";
+    render();
+  };
+  im.onerror=()=>{toast("Image illisible. Essaie un JPEG.");URL.revokeObjectURL(url);};
+  im.src=url;
+};
+
+/* ---------- Contrôles ---------- */
+function bindRange(id,fid,fmt,apply){
+  const el=$(id);
+  el.addEventListener("input",()=>{apply(+el.value);$(fid).textContent=fmt(+el.value);render();});
+  $(fid).textContent=fmt(+el.value);
+}
+bindRange("cropL","vCropL",v=>v+"%",v=>S.crop.l=v);
+bindRange("cropR","vCropR",v=>v+"%",v=>S.crop.r=v);
+bindRange("cropT","vCropT",v=>v+"%",v=>S.crop.t=v);
+bindRange("cropB","vCropB",v=>v+"%",v=>S.crop.b=v);
+bindRange("fine","vFine",v=>String(v),v=>S.fine=v);
+bindRange("cols","vCols",v=>String(v),v=>S.cols=v);
+bindRange("rows","vRows",v=>String(v),v=>S.rows=v);
+bindRange("weight","vWeight",v=>(v/10).toFixed(1).replace(".",","),v=>S.weight=v/10);
+bindRange("opacity","vOpacity",v=>v+"%",v=>S.opacity=v/100);
+
+["title","ph","date","note"].forEach(k=>$(k).addEventListener("input",e=>{
+  S[k]=e.target.value;
+  if(k==="title")$("st2").textContent=e.target.value.trim()?"renseigné":"—";
+  render();
+}));
+
+$("modeAuto").onclick=()=>setAuto(true);
+$("modeMan").onclick=()=>setAuto(false);
+function setAuto(v){
+  S.auto=v;
+  $("modeAuto").setAttribute("aria-pressed",String(v));
+  $("modeMan").setAttribute("aria-pressed",String(!v));
+  $("autoWrap").hidden=v?false:true;
+  $("manWrap").hidden=v;
+  $("autoWrap").style.display=v?"grid":"none";
+  if(!v && S.img){const g=gridDims();S.cols=g.cols;S.rows=g.rows;
+    $("cols").value=g.cols;$("vCols").textContent=g.cols;
+    $("rows").value=g.rows;$("vRows").textContent=g.rows;}
+  render();
+}
+
+function swatches(host,list,key){
+  list.forEach(c=>{
+    const b=document.createElement("button");
+    b.className="sw"; b.type="button"; b.style.background=c;
+    b.setAttribute("aria-pressed",String(c===S[key]));
+    b.onclick=()=>{S[key]=c;[...host.children].forEach(x=>x.setAttribute("aria-pressed",String(x===b)));render();};
+    host.appendChild(b);
+  });
+}
+swatches($("gridColors"),["#E11414","#000000","#FFFFFF","#00A3FF","#FFD400"],"color");
+swatches($("markColors"),["#16307A","#000000","#FFFFFF","#E11414"],"markColor");
+
+$("page").onchange=e=>{S.page=e.target.value;$("st5").textContent=e.target.selectedOptions[0].text;};
+document.querySelectorAll(".shead").forEach(h=>h.onclick=()=>{const b=$(h.dataset.toggle);b.hidden=!b.hidden;});
+
+/* ---------- Placement avec loupe ---------- */
+const loupe=$("loupe"), lctx=$("loupeCv").getContext("2d");
+
+$("btnAdd").onclick=()=>{
+  if(!S.img){toast("Charge d'abord la photo.");return;}
+  S.step=1; S.draft=null; S.editIndex=-1;
+  prev.classList.add("picking");
+  $("statusText").innerHTML="<strong>1/2</strong> — vise le point mesuré, relâche pour valider";
+  window.scrollTo({top:0,behavior:"smooth"});
+  render();
+};
+
+function cssToNorm(cx,cy){
+  const L=L0;
+  const dx=cx/pScale, dy=cy/pScale;
+  const u=(dx-L.ox)/L.iw, v=(dy-L.oy)/L.ih;
+  const {l,r,t,b}=S.crop;
+  return {u,v, x:(l+u*(100-l-r))/100, y:(t+v*(100-t-b))/100};
+}
+function showLoupe(cx,cy){
+  const k=prev.width/prev.clientWidth, R=132, zoom=3.6, src=R/zoom*k;
+  lctx.fillStyle="#000"; lctx.fillRect(0,0,R,R);
+  lctx.imageSmoothingEnabled=false;
+  lctx.drawImage(prev,cx*k-src/2,cy*k-src/2,src,src,0,0,R,R);
+  lctx.strokeStyle="#FF4B33"; lctx.lineWidth=1.5;
+  lctx.beginPath();
+  lctx.moveTo(R/2-14,R/2); lctx.lineTo(R/2-4,R/2);
+  lctx.moveTo(R/2+4,R/2); lctx.lineTo(R/2+14,R/2);
+  lctx.moveTo(R/2,R/2-14); lctx.lineTo(R/2,R/2-4);
+  lctx.moveTo(R/2,R/2+4); lctx.lineTo(R/2,R/2+14);
+  lctx.stroke();
+  const fr=$("frame").getBoundingClientRect(), pr=prev.getBoundingClientRect();
+  const offY=pr.top-fr.top, offX=pr.left-fr.left;
+  let ly=offY+cy-R-26;
+  if(ly<0) ly=offY+cy+26;
+  loupe.style.left=clamp(offX+cx-R/2,2,fr.width-R-2)+"px";
+  loupe.style.top=ly+"px";
+  loupe.style.display="block";
+}
+function hideLoupe(){loupe.style.display="none";}
+
+let active=false;
+prev.addEventListener("pointerdown",ev=>{
+  if(!S.step) return;
+  active=true; prev.setPointerCapture(ev.pointerId); ev.preventDefault();
+  const r=prev.getBoundingClientRect();
+  showLoupe(ev.clientX-r.left,ev.clientY-r.top);
+});
+prev.addEventListener("pointermove",ev=>{
+  if(!active) return; ev.preventDefault();
+  const r=prev.getBoundingClientRect();
+  showLoupe(ev.clientX-r.left,ev.clientY-r.top);
+});
+prev.addEventListener("pointerup",ev=>{
+  if(!active) return; active=false; hideLoupe();
+  const r=prev.getBoundingClientRect();
+  const n=cssToNorm(ev.clientX-r.left,ev.clientY-r.top);
+  if(n.u<0||n.u>1||n.v<0||n.v>1){toast("Vise à l'intérieur de la photo.");return;}
+  if(S.step===1){
+    S.draft={x:n.x,y:n.y,lx:null,ly:null,dist:null,unit:"m",label:""};
+    S.step=2;
+    $("statusText").innerHTML="<strong>2/2</strong> — place la valeur dans une zone dégagée";
+    render();
+  }else if(S.step===2){
+    S.draft.lx=n.x; S.draft.ly=n.y;
+    S.step=0; prev.classList.remove("picking");
+    render(); openEditor();
+  }
+});
+prev.addEventListener("pointercancel",()=>{active=false;hideLoupe();});
+
+function openEditor(){
+  const d=S.draft;
+  $("edHead").textContent = S.editIndex>=0
+    ? "Modification du relevé en "+cellOf(d.x,d.y,L0)
+    : "Point mesuré en "+cellOf(d.x,d.y,L0);
+  $("edDist").value=d.dist!=null?d.dist:"";
+  $("edUnit").value=d.unit; $("edLabel").value=d.label||"";
+  $("editor").hidden=false; $("bar").style.display="none";
+  setTimeout(()=>$("edDist").focus(),80);
+}
+function closeEditor(){
+  $("editor").hidden=true; $("bar").style.display="";
+  S.draft=null; S.step=0; S.editIndex=-1;
+  prev.classList.remove("picking");
+  $("statusText").textContent=S.img?"Photo chargée":"Aucune photo";
+  render();
+}
+$("edCancel").onclick=closeEditor;
+$("edOk").onclick=()=>{
+  const v=parseFloat(($("edDist").value||"").replace(",","."));
+  if(!isFinite(v)||v<=0){toast("Saisis la distance mesurée.");$("edDist").focus();return;}
+  S.draft.dist=Math.round(v*10)/10;
+  S.draft.unit=$("edUnit").value;
+  S.draft.label=$("edLabel").value.trim();
+  if(S.editIndex>=0) S.marks[S.editIndex]=S.draft; else S.marks.push(S.draft);
+  closeEditor(); toast("Relevé enregistré");
+};
+
+function syncMarks(L){
+  const ul=$("markList"); ul.innerHTML="";
+  S.marks.forEach((m,i)=>{
+    const li=document.createElement("li");
+    const d=document.createElement("span"); d.className="d num"; d.textContent=fmtDist(m);
+    const r=document.createElement("span"); r.className="r";
+    r.textContent=cellOf(m.x,m.y,L)+(m.label?" · "+m.label:"");
+    const e=document.createElement("button"); e.textContent="Valeur";
+    e.onclick=()=>{S.editIndex=i;S.draft={...m};openEditor();window.scrollTo({top:0,behavior:"smooth"});};
+    const p=document.createElement("button"); p.textContent="Replacer";
+    p.onclick=()=>{S.marks.splice(i,1);render();$("btnAdd").click();};
+    const x=document.createElement("button"); x.className="danger"; x.textContent="×";
+    x.onclick=()=>{S.marks.splice(i,1);render();};
+    li.append(d,r,e,p,x); ul.appendChild(li);
+  });
+}
+
+/* ---------- Export ---------- */
+function renderExport(){
+  const L=layout();
+  let tw=3400;
+  if(tw*tw*L.H/L.W>14e6) tw=Math.sqrt(14e6*L.W/L.H);
+  const s=tw/L.W;
+  const cv=document.createElement("canvas");
+  cv.width=Math.round(L.W*s); cv.height=Math.round(L.H*s);
+  draw(cv.getContext("2d"),s,L);
+  return cv;
+}
+function baseName(){
+  const t=(S.title||"carroyage").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^A-Za-z0-9]+/g,"_").replace(/^_+|_+$/g,"").slice(0,48);
+  return t||"carroyage";
+}
+function saveBlob(b,n){
+  const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download=n;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},4000);
+}
+$("btnPng").onclick=()=>renderExport().toBlob(b=>{saveBlob(b,baseName()+".png");toast("PNG enregistré");},"image/png");
+$("btnPdf").onclick=()=>{
+  const cv=renderExport();
+  const bin=atob(cv.toDataURL("image/jpeg",0.92).split(",")[1]);
+  const j=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) j[i]=bin.charCodeAt(i);
+  saveBlob(new Blob([buildPDF(j,cv.width,cv.height,S.page)],{type:"application/pdf"}),baseName()+".pdf");
+  toast("PDF généré");
+};
+function buildPDF(jpeg,iw,ih,fmt){
+  let pw,ph;
+  if(fmt==="a4l"){pw=841.89;ph=595.28;}
+  else if(fmt==="a3l"){pw=1190.55;ph=841.89;}
+  else{pw=Math.min(1400,iw*0.24);ph=pw*ih/iw;}
+  const m=(fmt==="fit")?0:16;
+  const s=Math.min((pw-2*m)/iw,(ph-2*m)/ih);
+  const w=iw*s,h=ih*s,x=(pw-w)/2,y=(ph-h)/2;
+  const parts=[]; let len=0; const off=[];
+  const latin=t=>{const u=new Uint8Array(t.length);for(let i=0;i<t.length;i++)u[i]=t.charCodeAt(i)&255;return u;};
+  const push=d=>{const u=(typeof d==="string")?latin(d):d;parts.push(u);len+=u.length;};
+  const obj=(n,b,st)=>{off[n]=len;push(n+" 0 obj\n");push(b);
+    if(st){push("\nstream\n");push(st);push("\nendstream");}push("\nendobj\n");};
+  push("%PDF-1.4\n");
+  obj(1,"<</Type/Catalog/Pages 2 0 R>>");
+  obj(2,"<</Type/Pages/Kids[3 0 R]/Count 1>>");
+  obj(3,"<</Type/Page/Parent 2 0 R/MediaBox[0 0 "+pw.toFixed(2)+" "+ph.toFixed(2)+
+        "]/Resources<</XObject<</I0 4 0 R>>>>/Contents 5 0 R>>");
+  obj(4,"<</Type/XObject/Subtype/Image/Width "+iw+"/Height "+ih+
+        "/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter/DCTDecode/Length "+jpeg.length+">>",jpeg);
+  const cs="q "+w.toFixed(2)+" 0 0 "+h.toFixed(2)+" "+x.toFixed(2)+" "+y.toFixed(2)+" cm /I0 Do Q";
+  obj(5,"<</Length "+cs.length+">>",cs);
+  const xr=len;
+  let t="xref\n0 6\n0000000000 65535 f \n";
+  for(let i=1;i<=5;i++) t+=String(off[i]).padStart(10,"0")+" 00000 n \n";
+  t+="trailer\n<</Size 6/Root 1 0 R>>\nstartxref\n"+xr+"\n%%EOF\n";
+  push(t);
+  const out=new Uint8Array(len); let p=0;
+  for(const u of parts){out.set(u,p);p+=u.length;}
+  return out;
+}
+
+let tT;
+function toast(msg){const t=$("toast");t.textContent=msg;t.hidden=false;
+  clearTimeout(tT);tT=setTimeout(()=>t.hidden=true,2200);}
+window.addEventListener("resize",()=>{if(S.img)render();});
+$("date").value=new Date().toLocaleDateString("fr-FR"); S.date=$("date").value;
+setAuto(true);
+</script>
+</body>
+</html>
