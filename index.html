@@ -305,7 +305,7 @@
 <script>
 "use strict";
 /* Numéro de version : à incrémenter à chaque modification mise en ligne. */
-const VERSION="1.1";
+const VERSION="1.2";
 const $=id=>document.getElementById(id);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
@@ -800,9 +800,12 @@ function syncMarks(L){
 }
 
 /* ---------- Export ---------- */
-function renderExport(){
+/* Largeur du rendu en pixels, selon la destination.
+   HQ : pleine résolution. PDF : ~250 ppp sur A4, suffisant à l'impression.
+   LQ : destiné à l'écran et à l'envoi rapide. */
+function renderExport(tw){
   const L=layout();
-  let tw=3400;
+  if(!tw) tw=3400;
   if(tw*tw*L.H/L.W>14e6) tw=Math.sqrt(14e6*L.W/L.H);
   const s=tw/L.W;
   const cv=document.createElement("canvas");
@@ -834,10 +837,10 @@ function shareOrSave(blob,name,label){
   }
 }
 $("btnPng").onclick=()=>renderExport().toBlob(b=>shareOrSave(b,baseName()+".png","Image HQ"),"image/png");
-$("btnJpg").onclick=()=>renderExport().toBlob(b=>shareOrSave(b,baseName()+".jpg","Image LQ"),"image/jpeg",0.7);
+$("btnJpg").onclick=()=>renderExport(2200).toBlob(b=>shareOrSave(b,baseName()+".jpg","Image LQ"),"image/jpeg",0.55);
 $("btnPdf").onclick=()=>{
-  const cv=renderExport();
-  const bin=atob(cv.toDataURL("image/jpeg",0.92).split(",")[1]);
+  const cv=renderExport(2800);
+  const bin=atob(cv.toDataURL("image/jpeg",0.82).split(",")[1]);
   const j=new Uint8Array(bin.length);
   for(let i=0;i<bin.length;i++) j[i]=bin.charCodeAt(i);
   shareOrSave(new Blob([buildPDF(j,cv.width,cv.height,S.page)],{type:"application/pdf"}),baseName()+".pdf","PDF");
