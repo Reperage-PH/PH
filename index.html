@@ -292,7 +292,7 @@
 </div>
 
 <div class="bar" id="bar">
-  <button id="btnPng" disabled>Image PNG</button>
+  <button id="btnPng" disabled>Image — partager</button>
   <button class="primary" id="btnPdf" disabled>PDF — partager</button>
 </div>
 
@@ -816,24 +816,24 @@ function saveBlob(b,n){
 }
 /* Partage natif avec un vrai fichier : Mail le met en pièce jointe.
    Repli sur le téléchargement classique si le navigateur ne sait pas partager. */
-function shareOrSave(blob,name){
+function shareOrSave(blob,name,label){
   let f=null;
   try{ f=new File([blob],name,{type:blob.type}); }catch(e){}
   if(f&&navigator.share&&navigator.canShare&&navigator.canShare({files:[f]})){
-    navigator.share({files:[f]}).then(()=>toast("PDF transmis")).catch(err=>{
-      if(!err||err.name!=="AbortError"){saveBlob(blob,name);toast("PDF enregistré");}
+    navigator.share({files:[f]}).then(()=>toast(label+" transmis")).catch(err=>{
+      if(!err||err.name!=="AbortError"){saveBlob(blob,name);toast(label+" enregistré");}
     });
   }else{
-    saveBlob(blob,name); toast("PDF enregistré");
+    saveBlob(blob,name); toast(label+" enregistré");
   }
 }
-$("btnPng").onclick=()=>renderExport().toBlob(b=>{saveBlob(b,baseName()+".png");toast("PNG enregistré");},"image/png");
+$("btnPng").onclick=()=>renderExport().toBlob(b=>shareOrSave(b,baseName()+".png","PNG"),"image/png");
 $("btnPdf").onclick=()=>{
   const cv=renderExport();
   const bin=atob(cv.toDataURL("image/jpeg",0.92).split(",")[1]);
   const j=new Uint8Array(bin.length);
   for(let i=0;i<bin.length;i++) j[i]=bin.charCodeAt(i);
-  shareOrSave(new Blob([buildPDF(j,cv.width,cv.height,S.page)],{type:"application/pdf"}),baseName()+".pdf");
+  shareOrSave(new Blob([buildPDF(j,cv.width,cv.height,S.page)],{type:"application/pdf"}),baseName()+".pdf","PDF");
 };
 function buildPDF(jpeg,iw,ih,fmt){
   let pw,ph;
