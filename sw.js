@@ -1,4 +1,4 @@
-const CACHE = "carroyage-v4";
+const CACHE = "carroyage-v5";
 
 self.addEventListener("install", e => {
   self.skipWaiting();
@@ -6,7 +6,10 @@ self.addEventListener("install", e => {
     caches.open(CACHE)
       .then(c => c.addAll([
         new Request("./", { cache: "reload" }),
-        new Request("./index.html", { cache: "reload" })
+        new Request("./index.html", { cache: "reload" }),
+        new Request("./manifest.json", { cache: "reload" }),
+        new Request("./icon-192.png", { cache: "reload" }),
+        new Request("./icon-512.png", { cache: "reload" })
       ]))
       .catch(() => {})
   );
