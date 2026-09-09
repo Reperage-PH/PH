@@ -24,8 +24,11 @@
   .num{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
 
   header{padding:calc(env(safe-area-inset-top) + 12px) var(--pad) 11px;
-    border-bottom:1px solid var(--hair);position:relative}
+    border-bottom:1px solid var(--hair);position:relative;
+    display:flex;align-items:baseline;gap:8px}
   header h1{font-size:15px;font-weight:650;margin:0;letter-spacing:.05em}
+  header .ver{font-size:11px;color:var(--mute);letter-spacing:.04em;
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
   header::after{content:"";position:absolute;left:0;bottom:-1px;width:56px;height:2px;background:var(--signal)}
 
   .stage{position:sticky;top:0;z-index:20;background:var(--bg);
@@ -149,7 +152,7 @@
 </head>
 <body>
 
-<header><h1>Carroyage PH</h1></header>
+<header><h1>Carroyage PH</h1><span class="ver" id="ver"></span></header>
 
 <div class="stage">
   <div class="frame" id="frame">
@@ -294,13 +297,15 @@
 <div class="bar" id="bar">
   <button id="btnPng" disabled>Image HQ</button>
   <button id="btnJpg" disabled>Image LQ</button>
-  <button class="primary" id="btnPdf" disabled>PDF — Exporter</button>
+  <button class="primary" id="btnPdf" disabled>PDF</button>
 </div>
 
 <div class="toast" id="toast" hidden></div>
 
 <script>
 "use strict";
+/* Numéro de version : à incrémenter à chaque modification mise en ligne. */
+const VERSION="1.1";
 const $=id=>document.getElementById(id);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
@@ -829,7 +834,7 @@ function shareOrSave(blob,name,label){
   }
 }
 $("btnPng").onclick=()=>renderExport().toBlob(b=>shareOrSave(b,baseName()+".png","Image HQ"),"image/png");
-$("btnJpg").onclick=()=>renderExport().toBlob(b=>shareOrSave(b,baseName()+".jpg","Image LQ"),"image/jpeg",0.9);
+$("btnJpg").onclick=()=>renderExport().toBlob(b=>shareOrSave(b,baseName()+".jpg","Image LQ"),"image/jpeg",0.7);
 $("btnPdf").onclick=()=>{
   const cv=renderExport();
   const bin=atob(cv.toDataURL("image/jpeg",0.92).split(",")[1]);
@@ -890,6 +895,7 @@ const LOGO_DATA="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAYAAABcc
 LOGO.img=new Image();
 LOGO.img.onload=()=>{LOGO.ok=true;if(S.img)render();};
 LOGO.img.src=LOGO_DATA;
+$("ver").textContent="v"+VERSION;
 $("emptyLogo").src=LOGO_DATA;
 if("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(()=>{});
 </script>

@@ -1,8 +1,15 @@
-const CACHE = "carroyage-v3";
+const CACHE = "carroyage-v4";
 
 self.addEventListener("install", e => {
   self.skipWaiting();
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(["./", "./index.html"])).catch(() => {}));
+  e.waitUntil(
+    caches.open(CACHE)
+      .then(c => c.addAll([
+        new Request("./", { cache: "reload" }),
+        new Request("./index.html", { cache: "reload" })
+      ]))
+      .catch(() => {})
+  );
 });
 
 self.addEventListener("activate", e => {
@@ -15,8 +22,11 @@ self.addEventListener("activate", e => {
 
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
+  /* Réseau d'abord, en contournant le cache HTTP du navigateur :
+     sans cela, Safari peut répondre depuis sa propre réserve et
+     la mise à jour du dépôt n'apparaît pas. Repli sur le cache hors réseau. */
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, { cache: "no-store" })
       .then(r => {
         const copy = r.clone();
         caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});
