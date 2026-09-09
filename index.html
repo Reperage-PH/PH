@@ -245,9 +245,8 @@
         <select id="page">
           <option value="a4l">A4 paysage</option>
           <option value="a3l">A3 paysage</option>
-          <option value="fit">Page au format de la planche</option>
         </select></label>
-      <div class="hint">Le PDF part dans les fichiers du téléphone : imprimable ou transmissible en l'état.</div>
+      <div class="hint">Le PDF s'ouvre dans le menu de partage du téléphone : Mail le joint en pièce jointe, Enregistrer dans Fichiers le garde en local.</div>
     </div>
   </section>
 </main>
@@ -294,7 +293,7 @@
 
 <div class="bar" id="bar">
   <button id="btnPng" disabled>Image PNG</button>
-  <button class="primary" id="btnPdf" disabled>Générer le PDF</button>
+  <button class="primary" id="btnPdf" disabled>PDF — partager</button>
 </div>
 
 <div class="toast" id="toast" hidden></div>
@@ -815,21 +814,32 @@ function saveBlob(b,n){
   document.body.appendChild(a); a.click();
   setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},4000);
 }
+/* Partage natif avec un vrai fichier : Mail le met en pièce jointe.
+   Repli sur le téléchargement classique si le navigateur ne sait pas partager. */
+function shareOrSave(blob,name){
+  let f=null;
+  try{ f=new File([blob],name,{type:blob.type}); }catch(e){}
+  if(f&&navigator.share&&navigator.canShare&&navigator.canShare({files:[f]})){
+    navigator.share({files:[f]}).then(()=>toast("PDF transmis")).catch(err=>{
+      if(!err||err.name!=="AbortError"){saveBlob(blob,name);toast("PDF enregistré");}
+    });
+  }else{
+    saveBlob(blob,name); toast("PDF enregistré");
+  }
+}
 $("btnPng").onclick=()=>renderExport().toBlob(b=>{saveBlob(b,baseName()+".png");toast("PNG enregistré");},"image/png");
 $("btnPdf").onclick=()=>{
   const cv=renderExport();
   const bin=atob(cv.toDataURL("image/jpeg",0.92).split(",")[1]);
   const j=new Uint8Array(bin.length);
   for(let i=0;i<bin.length;i++) j[i]=bin.charCodeAt(i);
-  saveBlob(new Blob([buildPDF(j,cv.width,cv.height,S.page)],{type:"application/pdf"}),baseName()+".pdf");
-  toast("PDF généré");
+  shareOrSave(new Blob([buildPDF(j,cv.width,cv.height,S.page)],{type:"application/pdf"}),baseName()+".pdf");
 };
 function buildPDF(jpeg,iw,ih,fmt){
   let pw,ph;
-  if(fmt==="a4l"){pw=841.89;ph=595.28;}
-  else if(fmt==="a3l"){pw=1190.55;ph=841.89;}
-  else{pw=Math.min(1400,iw*0.24);ph=pw*ih/iw;}
-  const m=(fmt==="fit")?0:16;
+  if(fmt==="a3l"){pw=1190.55;ph=841.89;}
+  else{pw=841.89;ph=595.28;}
+  const m=16;
   const s=Math.min((pw-2*m)/iw,(ph-2*m)/ih);
   const w=iw*s,h=ih*s,x=(pw-w)/2,y=(ph-h)/2;
   const parts=[];let len=0;const off=[];
