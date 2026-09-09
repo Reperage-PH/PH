@@ -292,7 +292,8 @@
 </div>
 
 <div class="bar" id="bar">
-  <button id="btnPng" disabled>Image — partager</button>
+  <button id="btnPng" disabled>Image HQ</button>
+  <button id="btnJpg" disabled>Image LQ</button>
   <button class="primary" id="btnPdf" disabled>PDF — Exporter</button>
 </div>
 
@@ -529,7 +530,7 @@ $("btnLoad").onclick=()=>{
       S.img=cv; S.natW=cv.width; S.natH=cv.height;
       URL.revokeObjectURL(url);
       $("emptyWrap").hidden=true; prev.hidden=false;
-      $("btnPng").disabled=false; $("btnPdf").disabled=false;
+      $("btnPng").disabled=false; $("btnJpg").disabled=false; $("btnPdf").disabled=false;
       $("st1").textContent=`${im.naturalWidth}×${im.naturalHeight}`;
       $("statusText").textContent="Photo chargée";
       $("btnLoad").textContent="Remplacer la photo";
@@ -827,7 +828,8 @@ function shareOrSave(blob,name,label){
     saveBlob(blob,name); toast(label+" enregistré");
   }
 }
-$("btnPng").onclick=()=>renderExport().toBlob(b=>shareOrSave(b,baseName()+".png","PNG"),"image/png");
+$("btnPng").onclick=()=>renderExport().toBlob(b=>shareOrSave(b,baseName()+".png","Image HQ"),"image/png");
+$("btnJpg").onclick=()=>renderExport().toBlob(b=>shareOrSave(b,baseName()+".jpg","Image LQ"),"image/jpeg",0.9);
 $("btnPdf").onclick=()=>{
   const cv=renderExport();
   const bin=atob(cv.toDataURL("image/jpeg",0.92).split(",")[1]);
