@@ -378,7 +378,7 @@
 <script>
 "use strict";
 /* Numéro de version : à incrémenter à chaque modification mise en ligne. */
-const VERSION="2.7";
+const VERSION="2.8";
 const $=id=>document.getElementById(id);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
@@ -980,6 +980,37 @@ function drawAim(){
     actx.moveTo(Math.max(0,V.tx),y); actx.lineTo(Math.min(V.cw,V.tx+W),y);}
   actx.stroke(); actx.globalAlpha=1;
 
+  /* Repères déjà posés. Anneau creux et non disque plein : si l'on revient
+     viser une ouverture voisine, le centre du marqueur doit rester lisible.
+     Taille fixe à l'écran, donc discret quel que soit le grossissement. La
+     valeur n'apparaît qu'au-delà de ×1,5 : dézoomé sur un panoramique, quinze
+     étiquettes seraient illisibles. */
+  const zoom=V.scale/V.fit;
+  const r0=Math.max(9,Math.min(V.cw,V.ch)*0.022);
+  actx.lineCap="round"; actx.textAlign="left"; actx.textBaseline="middle";
+  S.marks.forEach(m=>{
+    if(!markVisible(m)) return;
+    const uv=markUV(m);
+    const px=V.tx+uv.u*W, py=V.ty+uv.v*H;
+    const marge=r0*4;
+    if(px<-marge||px>V.cw+marge||py<-marge||py>V.ch+marge) return;
+    const col=markColor(m);
+    actx.strokeStyle="rgba(255,255,255,.9)"; actx.lineWidth=r0*0.52;
+    actx.beginPath(); actx.arc(px,py,r0,0,7); actx.stroke();
+    actx.strokeStyle=col; actx.lineWidth=r0*0.30;
+    actx.beginPath(); actx.arc(px,py,r0,0,7); actx.stroke();
+    if(zoom>1.5){
+      const t=markMain(m);
+      if(!t) return;
+      const fs=Math.max(12,r0*1.45);
+      actx.font=`700 ${fs}px ${FAM}`;
+      const tx=px+r0*1.7;
+      actx.strokeStyle="rgba(255,255,255,.92)"; actx.lineWidth=fs*0.30;
+      actx.strokeText(t,tx,py);
+      actx.fillStyle=col; actx.fillText(t,tx,py);
+    }
+  });
+
   const cu=centerUV();
   const n=uvToNorm(cu.u,cu.v);
   $("aimInfo").textContent="Case "+cellOf(n.x,n.y,L0)+"   ·   ×"+(V.scale/V.fit).toFixed(1);
@@ -1465,7 +1496,12 @@ function drawFichePage(ctx,PW,PH,pageIdx,pageCount,photos){
 
   /* en-tête */
   const logoD=m*1.75;
-  const lcx=PW-m-logoD/2, lcy=m*0.52+logoD/2;
+  /* Le contour renforcé dépasse du dessin : son bord extérieur est à
+     logoD*0.5145 du centre, et c'est lui qu'on aligne sur le bord droit du
+     tableau, pas l'image. */
+  const logoR=logoD*0.5145;
+  const lcx=PW-m-logoR, lcy=m*0.42+logoR;
+  const logoBottom=lcy+logoR;
   const lg=logoScaled(logoD);
   if(lg){
     ctx.drawImage(lg, lcx-logoD/2, lcy-logoD/2, logoD, logoD);
@@ -1494,7 +1530,9 @@ function drawFichePage(ctx,PW,PH,pageIdx,pageCount,photos){
   /* filet d'accent sous le bloc de titre */
   ctx.fillStyle=F_ACCENT;
   ctx.fillRect(m, yRule, m*2.2, PW*0.0045);
-  let y=yRule+m*0.34;
+  /* Le tableau démarre sous le bloc de titre ET sous le logo : sans cette
+     garde, le logo mordait sur le coin supérieur droit du tableau. */
+  let y=Math.max(yRule+m*0.34, logoBottom+m*0.20);
 
   let tableBottom=y;
   if(pageIdx===0){
