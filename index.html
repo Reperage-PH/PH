@@ -283,29 +283,22 @@
         <input type="text" id="fMail" placeholder="Adresse mail" autocomplete="off" inputmode="email"></label>
       <label class="field"><span>Observation</span>
         <input type="text" id="fObs" placeholder="Observation" autocomplete="off"></label>
-      <div class="row">
-        <button id="btnShootPhoto">Prendre une photo</button>
-        <button id="btnAddPhoto">Depuis la photothèque</button>
-      </div>
+      <button id="btnAddElem">Ajouter des éléments</button>
+      <div class="hint">Plan d'accès, photos, carte de visite… Plusieurs éléments possibles en une fois.</div>
       <ul class="marks" id="photoList"></ul>
     </div>
   </section>
 
   <section>
-    <div class="shead" data-toggle="s6b"><span class="idx num">6</span><h2>Export</h2><span class="state" id="st5">A4 paysage</span></div>
+    <div class="shead" data-toggle="s6b"><span class="idx num">6</span><h2>Export</h2><span class="state" id="st5"></span></div>
     <div class="sbody" id="s6b">
       <div class="exports">
-        <button id="btnJpg" disabled><b>Carroyage</b><small>basse qualité</small></button>
-        <button id="btnPng" disabled><b>Carroyage</b><small>haute qualité</small></button>
+        <button id="btnJpg" disabled><b>Carroyage</b><small>image basse qualité</small></button>
+        <button id="btnPng" disabled><b>Carroyage</b><small>image haute qualité</small></button>
         <button class="primary" id="btnPdf" disabled><b>Carroyage PDF</b></button>
         <button id="btnFichePdf"><b>Fiche PDF</b></button>
         <button class="primary wide" id="btnFullPdf"><b>Repérage PDF</b><small>Carroyage + Fiche</small></button>
       </div>
-      <label class="field"><span>Format — Carroyage PDF uniquement</span>
-        <select id="page">
-          <option value="a4l">A4 paysage</option>
-          <option value="a3l">A3 paysage</option>
-        </select></label>
     </div>
   </section>
 </main>
@@ -342,6 +335,13 @@
   </div>
 </div>
 
+<div class="editor" id="fmtChoice" hidden>
+  <div class="eh">Format du Carroyage PDF</div>
+  <button id="fmtA4">A4 paysage</button>
+  <button id="fmtA3">A3 paysage</button>
+  <button class="ghost" id="fmtCancel">Annuler</button>
+</div>
+
 <div class="editor" id="editor" hidden>
   <div class="eh" id="edHead">Repère</div>
   <div id="grpDist" style="display:grid;gap:12px">
@@ -359,10 +359,6 @@
     <label class="field"><span>Complément en petits caractères — facultatif</span>
       <input type="text" id="edSub" placeholder="Précision" autocomplete="off"></label>
   </div>
-  <div class="seg" role="group" aria-label="Position du texte">
-    <button id="edTop">Texte en haut</button>
-    <button id="edBot">Texte en bas</button>
-  </div>
   <div class="row">
     <button class="ghost" id="edCancel">Annuler</button>
     <button class="primary" id="edOk">Enregistrer</button>
@@ -374,7 +370,7 @@
 <script>
 "use strict";
 /* Numéro de version : à incrémenter à chaque modification mise en ligne. */
-const VERSION="2.1";
+const VERSION="2.3";
 const $=id=>document.getElementById(id);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
@@ -448,8 +444,19 @@ function footItems(){
   return [S.date, S.by.trim()?("Repérage effectué par "+S.by.trim()):"", S.note]
     .filter(x=>x&&x.trim());
 }
-function hasBand(side){
-  return S.marks.some(m=>m.side===side&&markMain(m));
+/* Le côté n'est pas stocké : il découle de la position du point dans la photo
+   (moitié haute -> bande du haut). Si le recadrage bouge, le texte suit. */
+function markUV(m){
+  const{l,r,t,b}=S.crop;
+  return{u:(m.x*100-l)/(100-l-r), v:(m.y*100-t)/(100-t-b)};
+}
+function markVisible(m){
+  const{u,v}=markUV(m);
+  return u>=-0.02&&u<=1.02&&v>=-0.02&&v<=1.02;
+}
+function markSide(m){ return markUV(m).v<0.5?"top":"bottom"; }
+function bandMarks(side){
+  return S.marks.filter(m=>markVisible(m)&&markSide(m)===side&&markMain(m));
 }
 /* Métriques de la planche. Objectif : le moins de place perdue possible autour
    du carroyage, pour qu'il sorte le plus grand possible sur la page. Les corps
@@ -471,18 +478,23 @@ function layout(){
   const leg=legendItems();
   const fsFoot=Math.min(gut*0.62,W*0.018);
   const footH=(footTxt?fsFoot*1.60:0)+(leg.length?fsFoot*1.75:0);
-  const fsBand=Math.min(gut*0.80,W*0.023);
-  const bandH=fsBand*1.75;
-  const bandT=hasBand("top")?bandH:0;
-  const bandB=hasBand("bottom")?bandH:0;
+  /* Texte des repères volontairement gros : sur une planche imprimée, la valeur
+     doit se lire d'un coup d'œil. Le complément passe sur une 2e ligne, sous la
+     valeur, ce qui réduit aussi les chevauchements horizontaux. */
+  const fsBand=Math.min(gut*1.10,W*0.030);
+  const fsSub=fsBand*0.58;
+  const mTop=bandMarks("top"), mBot=bandMarks("bottom");
+  const subT=mTop.some(m=>markSub(m)), subB=mBot.some(m=>markSub(m));
+  const bandOf=(list,hasSub)=>list.length?(fsBand*1.30+(hasSub?fsSub*1.35:0)):0;
+  const bandT=bandOf(mTop,subT), bandB=bandOf(mBot,subB);
   const logoD=gut*0.92;
   const showLogo=S.logo&&LOGO.ok;
   const ox=pad+gut, oy=pad+titleH+bandT+gut;
   const H=ih+2*gut+2*pad+titleH+footH+bandT+bandB;
-  const bandTopY=pad+titleH+bandT/2;
-  const bandBottomY=oy+ih+gut+bandB/2;
+  const bandTopY0=pad+titleH;
+  const bandBottomY0=oy+ih+gut;
   return{c,iw,ih,cols,rows,gut,pad,titleH,footH,footTxt,leg,hasT,hasI,logoD,showLogo,
-    fsTitle,fsInd,fsFoot,fsBand,bandT,bandB,bandTopY,bandBottomY,
+    fsTitle,fsInd,fsFoot,fsBand,fsSub,bandT,bandB,subT,subB,bandTopY0,bandBottomY0,
     ox,oy,W,H};
 }
 function toDisp(nx,ny,L){
@@ -505,26 +517,28 @@ function bandPlacements(ctx,L){
   ["top","bottom"].forEach(side=>{
     const items=[];
     S.marks.forEach((m,i)=>{
-      if(m.side!==side) return;
+      if(!markVisible(m)||markSide(m)!==side) return;
       const a=toDisp(m.x,m.y,L); if(!a) return;
       const main=markMain(m); if(!main) return;
       const sub=markSub(m);
-      let fs=L.fsBand;
-      ctx.font=`800 ${fs}px ${FAM}`;
-      let w1=ctx.measureText(main).width;
-      ctx.font=`600 ${fs*0.62}px ${FAM}`;
-      let w2=sub?ctx.measureText("  "+sub).width:0;
-      const maxW=L.iw*0.34;
-      while(w1+w2>maxW&&fs>L.fsBand*0.55){
-        fs*=0.94;
-        ctx.font=`800 ${fs}px ${FAM}`; w1=ctx.measureText(main).width;
-        ctx.font=`600 ${fs*0.62}px ${FAM}`; w2=sub?ctx.measureText("  "+sub).width:0;
+      let fs=L.fsBand, fsub=L.fsSub;
+      const measure=()=>{
+        ctx.font=`800 ${fs}px ${FAM}`;
+        const w1=ctx.measureText(main).width;
+        ctx.font=`600 ${fsub}px ${FAM}`;
+        const w2=sub?ctx.measureText(sub).width:0;
+        return{w1,w2,w:Math.max(w1,w2)};
+      };
+      let mm=measure();
+      const maxW=L.iw*0.30;
+      while(mm.w>maxW&&fs>L.fsBand*0.55){
+        fs*=0.94; fsub=fs*0.58; mm=measure();
       }
-      items.push({i,m,a,main,sub,fs,w:w1+w2,w1,w2,x:a.x});
+      items.push({i,m,a,main,sub,fs,fsub,w:mm.w,x:a.x});
     });
     if(!items.length) return;
     items.sort((p,q)=>p.x-q.x);
-    const gap=L.fsBand*0.55;
+    const gap=L.fsBand*0.90;   /* respiration proportionnelle au corps du texte */
     /* on écarte vers la droite, puis on recale dans le cadre par la gauche */
     let cursor=L.ox;
     items.forEach(it=>{
@@ -542,9 +556,12 @@ function bandPlacements(ctx,L){
         if(over<=0) break;
       }
     }
+    const y0=side==="top"?L.bandTopY0:L.bandBottomY0;
+    const mainY=y0+L.fsBand*0.78;
+    const subY=mainY+L.fsBand*0.52+L.fsSub*0.62;
     items.forEach(it=>{
-      out.set(it.i,{left:it.left,w:it.w,w1:it.w1,fs:it.fs,main:it.main,sub:it.sub,
-        y:side==="top"?L.bandTopY:L.bandBottomY,side,a:it.a});
+      out.set(it.i,{left:it.left,w:it.w,fs:it.fs,fsub:it.fsub,main:it.main,sub:it.sub,
+        mainY,subY,side,a:it.a});
     });
   });
   return out;
@@ -658,9 +675,13 @@ function drawMark(ctx,m,L,pl){
   const a=pl.a;
   const col=markColor(m);
   const stroke=Math.max(L.iw/900,1.2)*2.2;
-  const cx=pl.left+pl.w1/2;                       /* aplomb du texte principal */
-  /* le trait s'arrête avant le texte : il ne doit pas mordre dessus */
-  const stop=pl.side==="top"? pl.y+pl.fs*0.78 : pl.y-pl.fs*0.78;
+  const cx=pl.left+pl.w/2;
+  /* le trait s'arrête avant le bloc de texte : il ne doit pas mordre dessus.
+     En haut le texte est au-dessus du trait, donc on s'arrête sous la dernière
+     ligne ; en bas, on s'arrête au-dessus de la première. */
+  const stop=pl.side==="top"
+    ? (pl.sub? pl.subY+pl.fsub*0.95 : pl.mainY+pl.fs*0.80)
+    : pl.mainY-pl.fs*0.80;
   ctx.lineCap="round"; ctx.lineJoin="round";
   ctx.strokeStyle="rgba(255,255,255,.85)"; ctx.lineWidth=stroke*2.1;
   ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(cx,stop); ctx.stroke();
@@ -670,14 +691,14 @@ function drawMark(ctx,m,L,pl){
   ctx.fillStyle="rgba(255,255,255,.9)"; ctx.fill();
   ctx.lineWidth=stroke*0.9; ctx.strokeStyle=col; ctx.stroke();
 
-  ctx.textAlign="left"; ctx.textBaseline="middle";
+  ctx.textAlign="center"; ctx.textBaseline="middle";
   ctx.fillStyle=col;
   ctx.font=`800 ${pl.fs}px ${FAM}`;
-  ctx.fillText(pl.main,pl.left,pl.y);
+  ctx.fillText(pl.main,cx,pl.mainY);
   if(pl.sub){
-    ctx.font=`600 ${pl.fs*0.62}px ${FAM}`;
+    ctx.font=`600 ${pl.fsub}px ${FAM}`;
     ctx.fillStyle="#3A3A3A";
-    ctx.fillText("  "+pl.sub,pl.left+pl.w1,pl.y+pl.fs*0.06);
+    ctx.fillText(pl.sub,cx,pl.subY);
   }
 }
 
@@ -790,7 +811,6 @@ function swatches(host,list,key){
 swatches($("gridColors"),["#E11414","#000000","#FFFFFF","#00A3FF","#FFD400"],"color");
 swatches($("markColors"),["#16307A","#1E7A3C","#E07A00","#E11414","#000000","#FFFFFF"],"markColor");
 swatches($("refColors"),["#1E7A3C","#E07A00","#16307A","#E11414","#000000","#FFFFFF"],"refColor");
-$("page").onchange=e=>{S.page=e.target.value;$("st5").textContent=e.target.selectedOptions[0].text;};
 document.querySelectorAll(".shead").forEach(h=>h.onclick=()=>{const b=$(h.dataset.toggle);b.hidden=!b.hidden;});
 
 /* ---------- Écran de visée ---------- */
@@ -922,19 +942,11 @@ $("aimCancel").onclick=()=>{S.step=0;S.draft=null;S.editIndex=-1;closeAim();rend
 $("aimOk").onclick=()=>{
   const cu=centerUV(),n=uvToNorm(cu.u,cu.v);
   S.draft={type:S.pendingType,x:n.x,y:n.y,
-    side:cu.v<0.5?"top":"bottom",
     dist:null,unit:"m",label:"",text:"",sub:""};
   S.step=0; closeAim(); render(); openEditor();
 };
 
 /* ---------- Saisie de la valeur ---------- */
-function setSide(side){
-  S.draft.side=side;
-  $("edTop").setAttribute("aria-pressed",String(side==="top"));
-  $("edBot").setAttribute("aria-pressed",String(side==="bottom"));
-}
-$("edTop").onclick=()=>setSide("top");
-$("edBot").onclick=()=>setSide("bottom");
 function openEditor(){
   const isRef=S.draft.type==="ref";
   $("edHead").textContent=(isRef?"Repère désigné en case ":"Point mesuré en case ")+cellOf(S.draft.x,S.draft.y,L0);
@@ -945,7 +957,6 @@ function openEditor(){
   $("edLabel").value=S.draft.label||"";
   $("edText").value=S.draft.text||"";
   $("edSub").value=S.draft.sub||"";
-  setSide(S.draft.side||"top");
   $("editor").hidden=false;
   setTimeout(()=>$(isRef?"edText":"edDist").focus(),80);
 }
@@ -983,7 +994,7 @@ function syncMarks(L){
       d.style.overflow="hidden";d.style.textOverflow="ellipsis";d.style.whiteSpace="nowrap";}
     const r=document.createElement("span"); r.className="r";
     r.textContent=cellOf(m.x,m.y,L)+(markSub(m)?" · "+markSub(m):"")
-      +(m.side==="bottom"?" · bas":" · haut");
+      +(markSide(m)==="bottom"?" · bas":" · haut");
     const e=document.createElement("button"); e.textContent="Texte";
     e.onclick=()=>{S.editIndex=i;S.draft={...m};openEditor();window.scrollTo({top:0,behavior:"smooth"});};
     const p=document.createElement("button"); p.textContent="Replacer";
@@ -999,34 +1010,38 @@ function syncMarks(L){
   const key={fPh:"ph",fAddr:"addr",fAcces:"acces",fResp:"resp",fTel:"tel",fMail:"mail",fObs:"obs"}[id];
   $(id).addEventListener("input",e=>{S.fiche[key]=e.target.value;});
 });
-/* Photos complémentaires : prise de vue directe ou photothèque.
-   capture="environment" ouvre l'appareil arrière sans passer par le menu
-   du téléphone. Un cliché simple suffit ici, contrairement au panoramique. */
-function addFichePhoto(useCamera){
+/* Un seul bouton, comme pour la photo du carroyage : le menu du téléphone
+   propose de lui-même l'appareil photo ou la photothèque. Sélection multiple,
+   pour charger plan d'accès, carte de visite et clichés en une fois. */
+function addFicheElements(){
   const inp=document.createElement("input");
-  inp.type="file"; inp.accept="image/*";
-  if(useCamera) inp.setAttribute("capture","environment");
+  inp.type="file"; inp.accept="image/*"; inp.multiple=true;
   inp.onchange=e=>{
-    const f=e.target.files&&e.target.files[0]; if(!f) return;
-    const url=URL.createObjectURL(f),im=new Image();
-    im.onload=()=>{
-      const MAX=1600,k=Math.min(1,MAX/Math.max(im.naturalWidth,im.naturalHeight));
-      const cv=document.createElement("canvas");
-      cv.width=Math.round(im.naturalWidth*k); cv.height=Math.round(im.naturalHeight*k);
-      const c2=cv.getContext("2d"); c2.imageSmoothingQuality="high";
-      c2.drawImage(im,0,0,cv.width,cv.height);
-      S.fiche.photos.push({orig:cv,rot:0,crop:{x:0,y:0,w:1,h:1},img:cv,caption:""});
-      URL.revokeObjectURL(url);
+    const files=[...(e.target.files||[])]; if(!files.length) return;
+    let done=0, added=0;
+    const finish=()=>{
+      if(++done<files.length) return;
       syncPhotoList();
-      toast("Photo ajoutée — recadre et légende si besoin");
+      toast(added>1?(added+" éléments ajoutés"):"Élément ajouté — recadre et légende si besoin");
     };
-    im.onerror=()=>{toast("Image illisible.");URL.revokeObjectURL(url);};
-    im.src=url;
+    files.forEach(f=>{
+      const url=URL.createObjectURL(f),im=new Image();
+      im.onload=()=>{
+        const MAX=1600,k=Math.min(1,MAX/Math.max(im.naturalWidth,im.naturalHeight));
+        const cv=document.createElement("canvas");
+        cv.width=Math.round(im.naturalWidth*k); cv.height=Math.round(im.naturalHeight*k);
+        const c2=cv.getContext("2d"); c2.imageSmoothingQuality="high";
+        c2.drawImage(im,0,0,cv.width,cv.height);
+        S.fiche.photos.push({orig:cv,rot:0,crop:{x:0,y:0,w:1,h:1},img:cv,caption:""});
+        added++; URL.revokeObjectURL(url); finish();
+      };
+      im.onerror=()=>{toast("Un fichier était illisible.");URL.revokeObjectURL(url);finish();};
+      im.src=url;
+    });
   };
   inp.click();
 }
-$("btnShootPhoto").onclick=()=>addFichePhoto(true);
-$("btnAddPhoto").onclick=()=>addFichePhoto(false);
+$("btnAddElem").onclick=addFicheElements;
 
 /* Recadrage non destructif : on garde la photo d'origine, le recadrage et la
    rotation ne sont que des paramètres. p.img est l'image utilisée dans la fiche. */
@@ -1238,11 +1253,19 @@ function canvasToJpegBytes(cv,quality){
 }
 $("btnPng").onclick=()=>renderExport().toBlob(b=>shareOrSave(b,baseName()+".png","Carroyage HQ"),"image/png");
 $("btnJpg").onclick=()=>renderExport(2200).toBlob(b=>shareOrSave(b,baseName()+".jpg","Carroyage LQ"),"image/jpeg",0.55);
-$("btnPdf").onclick=()=>{
+/* Le format n'est demandé qu'ici : l'A3 n'a de sens que pour le carroyage seul. */
+$("btnPdf").onclick=()=>{$("fmtChoice").hidden=false;};
+$("fmtCancel").onclick=()=>{$("fmtChoice").hidden=true;};
+function exportCarroyagePdf(fmt){
+  $("fmtChoice").hidden=true;
+  S.page=fmt;
   const cv=renderExport(2800);
-  const jpeg=canvasToJpegBytes(cv,0.82);
-  shareOrSave(new Blob([buildPDF(jpeg,cv.width,cv.height,S.page)],{type:"application/pdf"}),baseName()+".pdf","Carroyage PDF");
-};
+  const bytes=fitBudget(q=>buildPDF(canvasToJpegBytes(cv,q),cv.width,cv.height,fmt),0.82);
+  shareOrSave(new Blob([bytes],{type:"application/pdf"}),baseName()+".pdf","Carroyage PDF");
+  warnIfHeavy(bytes);
+}
+$("fmtA4").onclick=()=>exportCarroyagePdf("a4l");
+$("fmtA3").onclick=()=>exportCarroyagePdf("a3l");
 /* Marge de page réduite au minimum : le carroyage doit sortir le plus grand
    possible, c'est un outil de travail qu'on lit à distance. */
 const PDF_MARGIN=8;
@@ -1306,22 +1329,37 @@ function wrapText(ctx,text,maxW){
   lines.push(cur);
   return lines;
 }
+/* Habillage de la fiche : sobre mais pas austère. Un seul accent rouge (celui
+   de la grille du carroyage), une colonne de libellés sur fond clair, des
+   filets gris doux. Le rouge ne sert qu'aux filets, jamais au texte courant. */
+const F_ACCENT="#B3261E", F_INK="#14181C", F_SOFT="#5A646E",
+      F_LABELBG="#EDF1F6", F_RULE="#C3CCD6";
 function drawFichePage(ctx,PW,PH,pageIdx,pageCount,photos){
   ctx.imageSmoothingQuality="high";
   const m=PW*0.07;
   ctx.fillStyle="#FFF"; ctx.fillRect(0,0,PW,PH);
   const phName=(S.fiche.ph.trim()||S.title.trim()||"Point Haut");
-  let y=m;
-  const logoD=m*1.6;
+
+  /* en-tête */
+  const logoD=m*1.75;
+  const lcx=PW-m-logoD/2, lcy=m*0.52+logoD/2;
   const lg=logoScaled(logoD);
-  if(lg) ctx.drawImage(lg, PW-m-logoD, m*0.55, logoD, logoD);
+  if(lg){
+    ctx.drawImage(lg, lcx-logoD/2, lcy-logoD/2, logoD, logoD);
+    /* contour renforcé : le cercle du dessin est fin, on l'épaissit */
+    ctx.strokeStyle=F_INK; ctx.lineWidth=logoD*0.045;
+    ctx.beginPath(); ctx.arc(lcx,lcy,logoD*0.492,0,7); ctx.stroke();
+  }
   ctx.textAlign="left"; ctx.textBaseline="alphabetic";
-  ctx.fillStyle="#0A0A0A"; ctx.font=`700 ${m*0.62}px ${FAM}`;
-  ctx.fillText(pageIdx===0?"Fiche Point Haut":"Fiche Point Haut — suite", m, y+m*0.30);
-  ctx.font=`500 ${m*0.30}px ${FAM}`; ctx.fillStyle="#3A3A3A";
+  ctx.fillStyle=F_INK; ctx.font=`700 ${m*0.60}px ${FAM}`;
+  ctx.fillText(pageIdx===0?"Fiche Point Haut":"Fiche Point Haut — suite", m, m+m*0.28);
+  ctx.font=`500 ${m*0.285}px ${FAM}`; ctx.fillStyle=F_SOFT;
   const sub=[S.by.trim()?("Repérage effectué par "+S.by.trim()):"",S.date].filter(Boolean).join("   ·   ");
-  if(sub) ctx.fillText(sub, m, y+m*0.62);
-  y+=m*1.15;
+  if(sub) ctx.fillText(sub, m, m+m*0.62);
+  /* filet d'accent sous le titre */
+  ctx.fillStyle=F_ACCENT;
+  ctx.fillRect(m, m+m*0.80, m*2.2, PW*0.0045);
+  let y=m+m*1.10;
 
   let tableBottom=y;
   if(pageIdx===0){
@@ -1329,55 +1367,88 @@ function drawFichePage(ctx,PW,PH,pageIdx,pageCount,photos){
       ["Responsable / Personne à contacter",S.fiche.resp],["Téléphone",S.fiche.tel],
       ["Mail",S.fiche.mail],["Observation",S.fiche.obs]];
     const col1W=(PW-2*m)*0.34, col2W=(PW-2*m)-col1W;
-    const padCell=m*0.18, lineH=m*0.34;
+    const padCell=m*0.20, lineH=m*0.34;
     let ry=y;
-    ctx.strokeStyle="#0A0A0A"; ctx.lineWidth=Math.max(1,PW*0.0012);
-    rows.forEach(([label,val])=>{
-      ctx.font=`italic 600 ${m*0.26}px ${FAM}`;
-      const labelLines=wrapText(ctx,label,col1W-2*padCell);
+    const geo=rows.map(([label,val])=>{
+      ctx.font=`600 ${m*0.26}px ${FAM}`;
+      const ll=wrapText(ctx,label,col1W-2*padCell);
       ctx.font=`400 ${m*0.26}px ${FAM}`;
-      const valLines=wrapText(ctx,val||"",col2W-2*padCell);
-      const lines=Math.max(labelLines.length,valLines.length,1);
-      const rowH=lines*lineH+padCell*1.2;
-      ctx.strokeRect(m,ry,col1W,rowH);
-      ctx.strokeRect(m+col1W,ry,col2W,rowH);
-      ctx.fillStyle="#0A0A0A"; ctx.textAlign="left";
-      ctx.font=`italic 600 ${m*0.26}px ${FAM}`;
-      labelLines.forEach((ln,i)=>ctx.fillText(ln, m+padCell, ry+padCell+(i+0.8)*lineH));
-      ctx.fillStyle="#1A1A1A"; ctx.font=`400 ${m*0.26}px ${FAM}`;
-      valLines.forEach((ln,i)=>ctx.fillText(ln, m+col1W+padCell, ry+padCell+(i+0.8)*lineH));
-      ry+=rowH;
+      const vl=wrapText(ctx,val||"",col2W-2*padCell);
+      return{label,val,ll,vl,h:Math.max(ll.length,vl.length,1)*lineH+padCell*1.3};
     });
-    tableBottom=ry+m*0.5;
+    const totalH=geo.reduce((a,g)=>a+g.h,0);
+    /* fond de la colonne des libellés */
+    ctx.fillStyle=F_LABELBG; ctx.fillRect(m,ry,col1W,totalH);
+    geo.forEach(g=>{
+      ctx.fillStyle=F_INK; ctx.textAlign="left";
+      ctx.font=`600 ${m*0.26}px ${FAM}`;
+      g.ll.forEach((ln,i)=>ctx.fillText(ln, m+padCell, ry+padCell+(i+0.8)*lineH));
+      ctx.fillStyle="#1F262E"; ctx.font=`400 ${m*0.26}px ${FAM}`;
+      g.vl.forEach((ln,i)=>ctx.fillText(ln, m+col1W+padCell, ry+padCell+(i+0.8)*lineH));
+      ry+=g.h;
+      /* filet de séparation, sauf après la dernière ligne */
+      if(g!==geo[geo.length-1]){
+        ctx.strokeStyle=F_RULE; ctx.lineWidth=Math.max(1,PW*0.0008);
+        ctx.beginPath(); ctx.moveTo(m,ry); ctx.lineTo(PW-m,ry); ctx.stroke();
+      }
+    });
+    /* cadre extérieur + séparateur de colonnes */
+    ctx.strokeStyle="#8D97A1"; ctx.lineWidth=Math.max(1,PW*0.0012);
+    ctx.strokeRect(m,y,PW-2*m,totalH);
+    ctx.beginPath(); ctx.moveTo(m+col1W,y); ctx.lineTo(m+col1W,y+totalH); ctx.stroke();
+    tableBottom=y+totalH;
   }
 
-  const footH=m*0.55;
-  const photosTop=tableBottom;
+  /* éléments complémentaires */
+  const footH=m*0.60;
+  let photosTop=tableBottom;
+  if(photos.length){
+    if(pageIdx===0){
+      photosTop=tableBottom+m*0.75;
+      ctx.fillStyle=F_ACCENT; ctx.fillRect(m,photosTop-m*0.30,m*0.9,PW*0.0035);
+      ctx.fillStyle=F_SOFT; ctx.textAlign="left";
+      ctx.font=`600 ${m*0.235}px ${FAM}`;
+      ctx.fillText("ÉLÉMENTS COMPLÉMENTAIRES", m+m*1.1, photosTop-m*0.22);
+      photosTop+=m*0.25;
+    }else{
+      photosTop=tableBottom+m*0.2;
+    }
+  }
   const photosBottom=PH-m-footH;
   const availH=Math.max(0,photosBottom-photosTop);
   if(photos.length && availH>0){
     const slotH=availH/photos.length;
     photos.forEach((p,i)=>{
       const slotY=photosTop+i*slotH;
-      const capH=p.caption? m*0.32:0;
-      const boxH=Math.max(0,slotH-capH-m*0.15);
+      const capH=p.caption? m*0.40:0;
+      const boxH=Math.max(0,slotH-capH-m*0.12);
       const boxW=PW-2*m;
       const iw=p.img.width, ih=p.img.height;
-      const s=Math.min(boxW/iw, boxH/ih);
-      const dw=iw*s, dh=ih*s;
-      const dx=m+(boxW-dw)/2, dy=slotY+(boxH-dh)/2;
-      if(s>0) ctx.drawImage(p.img,dx,dy,dw,dh);
+      const sc=Math.min(boxW/iw, boxH/ih);
+      const dw=iw*sc, dh=ih*sc;
+      const dx=m+(boxW-dw)/2, dy=slotY;            /* calé en haut du créneau */
+      if(sc>0){
+        ctx.drawImage(p.img,dx,dy,dw,dh);
+        ctx.strokeStyle=F_RULE; ctx.lineWidth=Math.max(1,PW*0.0008);
+        ctx.strokeRect(dx,dy,dw,dh);
+      }
       if(p.caption){
-        ctx.fillStyle="#3A3A3A"; ctx.font=`500 ${m*0.24}px ${FAM}`; ctx.textAlign="center";
-        ctx.fillText(p.caption, PW/2, slotY+boxH+m*0.30);
+        /* légende collée sous l'image, pas en bas du créneau */
+        ctx.fillStyle=F_SOFT; ctx.font=`500 ${m*0.245}px ${FAM}`;
+        ctx.textAlign="center"; ctx.textBaseline="alphabetic";
+        ctx.fillText(p.caption, dx+dw/2, dy+dh+m*0.29);
       }
     });
   }
-  ctx.strokeStyle="#DADADA"; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(m,PH-footH); ctx.lineTo(PW-m,PH-footH); ctx.stroke();
-  ctx.fillStyle="#6A6A6A"; ctx.font=`500 ${m*0.22}px ${FAM}`;
-  ctx.textAlign="left"; ctx.fillText(phName+(S.date?"   ·   "+S.date:""), m, PH-footH*0.35);
-  ctx.textAlign="right"; ctx.fillText("Page "+(pageIdx+1)+"/"+pageCount, PW-m, PH-footH*0.35);
+
+  /* pied de page : relie les feuilles si elles se séparent */
+  ctx.fillStyle=F_ACCENT; ctx.fillRect(m,PH-footH,m*0.9,PW*0.0030);
+  ctx.strokeStyle=F_RULE; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(m+m*1.0,PH-footH); ctx.lineTo(PW-m,PH-footH); ctx.stroke();
+  ctx.fillStyle=F_SOFT; ctx.font=`500 ${m*0.225}px ${FAM}`;
+  ctx.textAlign="left"; ctx.textBaseline="alphabetic";
+  ctx.fillText(phName+(S.date?"   ·   "+S.date:""), m, PH-footH*0.32);
+  ctx.textAlign="right"; ctx.fillText("Page "+(pageIdx+1)+"/"+pageCount, PW-m, PH-footH*0.32);
 }
 function renderFichePages(){
   const PW=1600, PH=Math.round(PW*Math.SQRT2);
@@ -1391,42 +1462,42 @@ function renderFichePages(){
 function ficheJpegPages(quality){
   return renderFichePages().map(cv=>({jpeg:canvasToJpegBytes(cv,quality),iw:cv.width,ih:cv.height,pw:595.28,ph:841.89}));
 }
-const PDF_BUDGET=2*1024*1024*0.95;
-function buildFicheOnlyPdfBytes(){
-  let q=0.75,bytes=null,attempt=0;
-  while(attempt<5){
-    bytes=buildMultiPagePDF(ficheJpegPages(q));
-    if(bytes.length<=PDF_BUDGET||q<=0.35) break;
-    q=Math.max(0.35,q-0.12); attempt++;
+/* Une pièce jointe est encodée en base64 dans le mail : +33 % environ. Pour
+   rester sous les 2 Mo des boîtes administratives, on vise 1,4 Mo de fichier. */
+const PDF_BUDGET=1.4*1024*1024;
+function fitBudget(build,qStart){
+  let q=qStart,bytes=build(q),attempt=0;
+  while(bytes.length>PDF_BUDGET&&q>0.40&&attempt<6){
+    q=Math.max(0.40,q-0.10); bytes=build(q); attempt++;
   }
   return bytes;
 }
+function warnIfHeavy(bytes){
+  if(bytes.length>PDF_BUDGET)
+    toast("Fichier de "+(bytes.length/1048576).toFixed(1)+" Mo — lourd pour un mail.");
+}
+function buildFicheOnlyPdfBytes(){
+  return fitBudget(q=>buildMultiPagePDF(ficheJpegPages(q)),0.75);
+}
 /* Le repérage complet reste en A4 : l'A3 n'a de sens que pour le carroyage seul. */
 function buildCombinedPdfBytes(){
-  let ficheQ=0.72, carQ=0.82, attempt=0, bytes=null;
   const carCanvas=renderExport(2800);
-  const pw=841.89, ph=595.28;
-  while(attempt<6){
-    const carJpeg=canvasToJpegBytes(carCanvas,carQ);
-    const pages=[...ficheJpegPages(ficheQ),{jpeg:carJpeg,iw:carCanvas.width,ih:carCanvas.height,pw,ph}];
-    bytes=buildMultiPagePDF(pages);
-    if(bytes.length<=PDF_BUDGET||(ficheQ<=0.35&&carQ<=0.55)) break;
-    if(ficheQ>0.35) ficheQ=Math.max(0.35,ficheQ-0.12);
-    else carQ=Math.max(0.55,carQ-0.08);
-    attempt++;
-  }
-  return bytes;
+  return fitBudget(q=>{
+    const carJpeg=canvasToJpegBytes(carCanvas,q);
+    return buildMultiPagePDF([...ficheJpegPages(q),
+      {jpeg:carJpeg,iw:carCanvas.width,ih:carCanvas.height,pw:841.89,ph:595.28}]);
+  },0.82);
 }
 $("btnFichePdf").onclick=()=>{
   const bytes=buildFicheOnlyPdfBytes();
   shareOrSave(new Blob([bytes],{type:"application/pdf"}),baseName()+"_fiche.pdf","Fiche PDF");
-  if(bytes.length>2*1024*1024) toast("Fichier > 2 Mo malgré la compression — réduis le nombre de photos.");
+  warnIfHeavy(bytes);
 };
 $("btnFullPdf").onclick=()=>{
   if(!S.img){toast("Charge d'abord la photo du carroyage.");return;}
   const bytes=buildCombinedPdfBytes();
   shareOrSave(new Blob([bytes],{type:"application/pdf"}),baseName()+"_reperage.pdf","Repérage PDF");
-  if(bytes.length>2*1024*1024) toast("Fichier > 2 Mo malgré la compression — réduis le nombre de photos.");
+  warnIfHeavy(bytes);
 };
 
 let tT;
