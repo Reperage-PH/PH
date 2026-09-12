@@ -1,6 +1,6 @@
 {
-  "name": "Carroyage PH",
-  "short_name": "Carroyage",
+  "name": "Repérage PH",
+  "short_name": "Repérage",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
