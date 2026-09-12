@@ -211,7 +211,6 @@
           <button id="brightPlus" aria-label="Plus lumineux">+</button>
         </div>
       </div>
-      <div class="hint">Compense les copieurs qui assombrissent à l'impression. N'écrête ni les blancs ni les noirs. Visible sur l'aperçu et les exports.</div>
     </div>
   </section>
 
@@ -290,8 +289,8 @@
         <input type="tel" id="fTel" placeholder="Téléphone" autocomplete="off" inputmode="tel"></label>
       <label class="field"><span>Mail</span>
         <input type="text" id="fMail" placeholder="Adresse mail" autocomplete="off" inputmode="email"></label>
-      <label class="field"><span>Observation</span>
-        <input type="text" id="fObs" placeholder="Observation" autocomplete="off"></label>
+      <label class="field"><span>Observations</span>
+        <input type="text" id="fObs" placeholder="Texte libre" autocomplete="off"></label>
       <button id="btnAddElem">Ajouter des éléments</button>
       <div class="hint">Plan d'accès, photos, carte de visite… Plusieurs éléments possibles en une fois.</div>
       <ul class="marks" id="photoList"></ul>
@@ -302,8 +301,8 @@
     <div class="shead" data-toggle="s6b"><span class="idx num">6</span><h2>Export</h2><span class="state" id="st5"></span></div>
     <div class="sbody" id="s6b">
       <div class="exports">
-        <button id="btnJpg" disabled><b>Carroyage</b><small>image basse qualité</small></button>
-        <button id="btnPng" disabled><b>Carroyage</b><small>image haute qualité</small></button>
+        <button id="btnJpg" disabled><b>Carroyage</b><small>Image basse qualité</small></button>
+        <button id="btnPng" disabled><b>Carroyage</b><small>Image haute qualité</small></button>
         <button class="primary" id="btnPdf" disabled><b>Carroyage PDF</b></button>
         <button id="btnFichePdf"><b>Fiche PDF</b></button>
         <button class="primary wide" id="btnFullPdf"><b>Repérage PDF</b><small>Carroyage + Fiche</small></button>
@@ -379,7 +378,7 @@
 <script>
 "use strict";
 /* Numéro de version : à incrémenter à chaque modification mise en ligne. */
-const VERSION="2.4";
+const VERSION="2.5";
 const $=id=>document.getElementById(id);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
@@ -481,8 +480,8 @@ function markMain(m){
 function markSub(m){return (m.type==="ref"?m.sub:m.label)||"";}
 function legendItems(){
   const out=[];
-  if(S.marks.some(m=>m.type!=="ref")) out.push({c:S.markColor,t:"Distances télémètre"});
-  if(S.marks.some(m=>m.type==="ref")) out.push({c:S.refColor,t:"Autres repères"});
+  if(S.marks.some(m=>m.type!=="ref")) out.push({c:S.markColor,t:"Distances"});
+  if(S.marks.some(m=>m.type==="ref")) out.push({c:S.refColor,t:"Repères"});
   return out;
 }
 function footItems(){
@@ -513,16 +512,34 @@ function layout(){
   const{cols,rows}=gridDims();
   const cell=Math.max(iw/cols,ih/rows);
   const gut=clamp(cell*1.0,ih*0.030,ih*0.075);
-  const pad=gut*0.35;
+  const pad=gut*0.20;
   const W=iw+2*gut+2*pad;
   const hasT=!!S.title.trim(), hasI=!!S.ph.trim();
-  const fsTitle=Math.min(gut*1.45,W*0.042);
-  const fsInd=Math.min(gut*0.92,W*0.026);
-  const titleH=(hasT?fsTitle*1.45:0)+(hasI?fsInd*1.55:0);
+  /* Titre et indicatif sur une seule ligne : deux lignes coûtaient plus de
+     hauteur que les deux bandes de repères réunies, pour la même information. */
+  let fsTitle=Math.min(gut*1.45,W*0.036);
+  let fsInd=fsTitle*0.62;
+  const titleGap=fsTitle*0.45;
+  const titleW=()=>(hasT?measW(S.title,"700",fsTitle):0)
+    +((hasT&&hasI)?titleGap:0)+(hasI?measW(S.ph,"600",fsInd):0);
+  const titleAvail=W-2*pad;
+  let guard=0;
+  while(titleW()>titleAvail&&fsTitle>8&&guard++<60){fsTitle*=0.95;fsInd=fsTitle*0.62;}
+  const titleH=(hasT||hasI)?fsTitle*1.30:0;
   const footTxt=footItems().join("   ·   ");
   const leg=legendItems();
   const fsFoot=Math.min(gut*0.62,W*0.018);
-  const footH=(footTxt?fsFoot*1.60:0)+(leg.length?fsFoot*1.75:0);
+  /* Pied : légende sur la même ligne que la date si la largeur le permet,
+     sinon elle passe dessous. */
+  const footAvail=W-2*(pad+gut);
+  const wInfo=footTxt?measW(footTxt,"500",fsFoot):0;
+  const wDims=measW(cols+" × "+rows,"500",fsFoot);
+  let wLeg=0;
+  leg.forEach(e=>{wLeg+=fsFoot*1.85+measW(e.t,"500",fsFoot)+fsFoot*1.10;});
+  const legInline=leg.length>0 &&
+    (wInfo+(wInfo?fsFoot*1.0:0)+wLeg+fsFoot*1.5+wDims)<=footAvail;
+  const footH=(footTxt||leg.length)
+    ? (fsFoot*1.60+((leg.length&&!legInline)?fsFoot*1.55:0)) : 0;
   /* Texte des repères volontairement gros : sur une planche imprimée, la valeur
      doit se lire d'un coup d'œil. Le complément passe sur une 2e ligne, sous la
      valeur, ce qui réduit aussi les chevauchements horizontaux. */
@@ -530,7 +547,7 @@ function layout(){
   const fsSub=fsBand*0.58;
   const mTop=bandMarks("top"), mBot=bandMarks("bottom");
   const subT=mTop.some(m=>markSub(m)), subB=mBot.some(m=>markSub(m));
-  const bandOf=(list,hasSub)=>list.length?(fsBand*1.30+(hasSub?fsSub*1.35:0)):0;
+  const bandOf=(list,hasSub)=>list.length?(fsBand*1.25+(hasSub?fsSub*1.15:0)):0;
   const bandT=bandOf(mTop,subT), bandB=bandOf(mBot,subB);
   const logoD=gut*0.92;
   const showLogo=S.logo&&LOGO.ok;
@@ -540,6 +557,7 @@ function layout(){
   const bandBottomY0=oy+ih+gut;
   return{c,iw,ih,cols,rows,gut,pad,titleH,footH,footTxt,leg,hasT,hasI,logoD,showLogo,
     fsTitle,fsInd,fsFoot,fsBand,fsSub,bandT,bandB,subT,subB,bandTopY0,bandBottomY0,
+    titleGap,legInline,
     ox,oy,W,H};
 }
 function toDisp(nx,ny,L){
@@ -557,6 +575,8 @@ function cellOf(nx,ny,L){
    Le texte se met à l'aplomb du point, au centre de la bande la plus proche.
    Si deux textes se chevauchent, ils sont écartés horizontalement. */
 const FAM='ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial, sans-serif';
+const MEAS=document.createElement("canvas").getContext("2d");
+function measW(txt,weight,px){MEAS.font=weight+" "+px+"px "+FAM;return MEAS.measureText(txt).width;}
 function bandPlacements(ctx,L){
   const out=new Map();
   ["top","bottom"].forEach(side=>{
@@ -620,20 +640,20 @@ function draw(ctx,scale,L){
   ctx.fillStyle="#FFF"; ctx.fillRect(0,0,W,H);
 
   if(titleH){
-    ctx.textAlign="center"; ctx.textBaseline="middle";
-    let y=pad;
+    /* titre et indicatif centrés ensemble sur une seule ligne */
+    ctx.textBaseline="middle"; ctx.textAlign="left";
+    const wT=L.hasT?measW(S.title,"700",L.fsTitle):0;
+    const wI=L.hasI?measW(S.ph,"600",L.fsInd):0;
+    const total=wT+((L.hasT&&L.hasI)?L.titleGap:0)+wI;
+    let x=(W-total)/2;
+    const yy=pad+L.fsTitle*0.65;
     if(L.hasT){
-      ctx.fillStyle="#0A0A0A";
-      let fs=L.fsTitle; ctx.font=`700 ${fs}px ${FAM}`;
-      while(ctx.measureText(S.title).width>W-2*pad&&fs>8){fs*=0.94;ctx.font=`700 ${fs}px ${FAM}`;}
-      ctx.fillText(S.title,W/2,y+L.fsTitle*0.72);
-      y+=L.fsTitle*1.45;
+      ctx.fillStyle="#0A0A0A"; ctx.font=`700 ${L.fsTitle}px ${FAM}`;
+      ctx.fillText(S.title,x,yy); x+=wT+L.titleGap;
     }
     if(L.hasI){
-      ctx.fillStyle="#2A2A2A";
-      let fs=L.fsInd; ctx.font=`600 ${fs}px ${FAM}`;
-      while(ctx.measureText(S.ph).width>W-2*pad&&fs>6){fs*=0.94;ctx.font=`600 ${fs}px ${FAM}`;}
-      ctx.fillText(S.ph,W/2,y+L.fsInd*0.78);
+      ctx.fillStyle="#3A4048"; ctx.font=`600 ${L.fsInd}px ${FAM}`;
+      ctx.fillText(S.ph,x,yy+L.fsTitle*0.06);
     }
   }
   ctx.drawImage(S.img,L.c.sx,L.c.sy,L.c.sw,L.c.sh,ox,oy,iw,ih);
@@ -689,19 +709,7 @@ function draw(ctx,scale,L){
 
   if(footH){
     const fs=L.fsFoot;
-    let y=H-pad-footH;
-    ctx.textBaseline="middle";
-    ctx.font=`500 ${fs}px ${FAM}`;
-    if(footTxt){
-      y+=fs*0.80;
-      ctx.fillStyle="#3A3A3A"; ctx.textAlign="left";
-      ctx.fillText(footTxt,pad+gut,y);
-      ctx.textAlign="right"; ctx.fillText(`${cols} × ${rows}`,W-pad-gut,y);
-      y+=fs*0.80;
-    }
-    if(L.leg.length){
-      y+=fs*0.88;
-      let x=pad+gut;
+    const drawLegend=(x,y)=>{
       ctx.textAlign="left"; ctx.lineCap="round";
       L.leg.forEach(e=>{
         ctx.strokeStyle=e.c; ctx.lineWidth=fs*0.21;
@@ -711,8 +719,22 @@ function draw(ctx,scale,L){
         x+=fs*1.85;
         ctx.fillStyle="#3A3A3A"; ctx.font=`500 ${fs}px ${FAM}`;
         ctx.fillText(e.t,x,y);
-        x+=ctx.measureText(e.t).width+fs*1.6;
+        x+=ctx.measureText(e.t).width+fs*1.10;
       });
+    };
+    ctx.textBaseline="middle"; ctx.font=`500 ${fs}px ${FAM}`;
+    let y=H-pad-footH+fs*0.80;
+    let x=pad+gut;
+    if(footTxt){
+      ctx.fillStyle="#3A3A3A"; ctx.textAlign="left";
+      ctx.fillText(footTxt,x,y);
+      x+=ctx.measureText(footTxt).width+fs*1.0;
+    }
+    ctx.textAlign="right"; ctx.fillStyle="#3A3A3A";
+    ctx.fillText(`${cols} × ${rows}`,W-pad-gut,y);
+    if(L.leg.length){
+      if(L.legInline) drawLegend(x,y);
+      else drawLegend(pad+gut,y+fs*1.45);
     }
   }
   ctx.restore();
@@ -1408,21 +1430,33 @@ function drawFichePage(ctx,PW,PH,pageIdx,pageCount,photos){
     ctx.beginPath(); ctx.arc(lcx,lcy,logoD*0.492,0,7); ctx.stroke();
   }
   ctx.textAlign="left"; ctx.textBaseline="alphabetic";
-  ctx.fillStyle=F_INK; ctx.font=`700 ${m*0.60}px ${FAM}`;
-  ctx.fillText(pageIdx===0?"Fiche Point Haut":"Fiche Point Haut — suite", m, m+m*0.28);
+  /* Le titre principal est le point haut lui-même ; un surtitre discret dit de
+     quel document il s'agit, pour une feuille qui circule seule. */
+  const yKick=m*0.60;
+  ctx.fillStyle=F_SOFT; ctx.font=`600 ${m*0.205}px ${FAM}`;
+  ctx.fillText("FICHE POINT HAUT", m, yKick);
+  const yTitle=yKick+m*0.74;
+  ctx.fillStyle=F_INK;
+  let fsFT=m*0.62;
+  const titleMax=PW-2*m-logoD-m*0.4;
+  let g2=0;
+  while(measW(phName,"700",fsFT)>titleMax&&fsFT>m*0.26&&g2++<40) fsFT*=0.95;
+  ctx.font=`700 ${fsFT}px ${FAM}`;
+  ctx.fillText(phName+(pageIdx?" — suite":""), m, yTitle);
   ctx.font=`500 ${m*0.285}px ${FAM}`; ctx.fillStyle=F_SOFT;
   const sub=[S.by.trim()?("Repérage effectué par "+S.by.trim()):"",S.date].filter(Boolean).join("   ·   ");
-  if(sub) ctx.fillText(sub, m, m+m*0.62);
-  /* filet d'accent sous le titre */
+  const yRule=yTitle+(sub?m*0.52:m*0.26);
+  if(sub) ctx.fillText(sub, m, yTitle+m*0.34);
+  /* filet d'accent sous le bloc de titre */
   ctx.fillStyle=F_ACCENT;
-  ctx.fillRect(m, m+m*0.80, m*2.2, PW*0.0045);
-  let y=m+m*1.10;
+  ctx.fillRect(m, yRule, m*2.2, PW*0.0045);
+  let y=yRule+m*0.34;
 
   let tableBottom=y;
   if(pageIdx===0){
-    const rows=[["Point Haut",phName],["Adresse",S.fiche.addr],["Accès",S.fiche.acces],
+    const rows=[["Adresse",S.fiche.addr],["Accès",S.fiche.acces],
       ["Responsable / Personne à contacter",S.fiche.resp],["Téléphone",S.fiche.tel],
-      ["Mail",S.fiche.mail],["Observation",S.fiche.obs]];
+      ["Mail",S.fiche.mail],["Observations",S.fiche.obs]];
     const col1W=(PW-2*m)*0.34, col2W=(PW-2*m)-col1W;
     const padCell=m*0.20, lineH=m*0.34;
     let ry=y;
