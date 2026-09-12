@@ -1,4 +1,4 @@
-const CACHE = "reperage-ph-v11";
+const CACHE = "reperage-ph-v12";
 
 self.addEventListener("install", e => {
   self.skipWaiting();

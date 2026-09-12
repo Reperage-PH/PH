@@ -378,7 +378,7 @@
 <script>
 "use strict";
 /* Numéro de version : à incrémenter à chaque modification mise en ligne. */
-const VERSION="2.6";
+const VERSION="2.7";
 const $=id=>document.getElementById(id);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
@@ -484,8 +484,11 @@ function legendItems(){
   if(S.marks.some(m=>m.type==="ref")) out.push({c:S.refColor,t:"Repères"});
   return out;
 }
+/* Ligne d'identification du pied. Les observations n'y figurent plus : un pavé
+   de texte y aurait débordé de la largeur. Elles ont leur propre bloc, en
+   dessous, et passent à la ligne autant que nécessaire. */
 function footItems(){
-  return [S.date, S.by.trim()?("Repérage effectué par "+S.by.trim()):"", S.note]
+  return [S.date, S.by.trim()?("Repérage effectué par "+S.by.trim()):""]
     .filter(x=>x&&x.trim());
 }
 /* Le côté n'est pas stocké : il découle de la position du point dans la photo
@@ -529,6 +532,7 @@ function layout(){
   const footTxt=footItems().join("   ·   ");
   const leg=legendItems();
   const fsFoot=Math.min(gut*0.62,W*0.018);
+  const obs=S.note.trim();
   /* Pied : légende sur la même ligne que la date si la largeur le permet,
      sinon elle passe dessous. */
   const footAvail=W-2*(pad+gut);
@@ -538,8 +542,14 @@ function layout(){
   leg.forEach(e=>{wLeg+=fsFoot*1.85+measW(e.t,"500",fsFoot)+fsFoot*1.10;});
   const legInline=leg.length>0 &&
     (wInfo+(wInfo?fsFoot*1.0:0)+wLeg+fsFoot*1.5+wDims)<=footAvail;
-  const footH=(footTxt||leg.length)
-    ? (fsFoot*1.60+((leg.length&&!legInline)?fsFoot*1.55:0)) : 0;
+  /* Observations : bloc propre, sous la date, l'auteur et la légende, replié
+     sur plusieurs lignes s'il est long. Vide la plupart du temps, il ne coûte
+     alors aucune hauteur. */
+  MEAS.font=`500 ${fsFoot}px ${FAM}`;
+  const obsLines=obs?wrapText(MEAS,obs,W-2*(pad+gut)):[];
+  const obsH=obsLines.length?(fsFoot*0.55+obsLines.length*fsFoot*1.32):0;
+  const footH=((footTxt||leg.length)
+    ? (fsFoot*1.60+((leg.length&&!legInline)?fsFoot*1.55:0)) : 0)+obsH;
   /* Texte des repères volontairement gros : sur une planche imprimée, la valeur
      doit se lire d'un coup d'œil. Le complément passe sur une 2e ligne, sous la
      valeur, ce qui réduit aussi les chevauchements horizontaux. */
@@ -566,7 +576,7 @@ function layout(){
   const bandBottomY0=oy+ih+gut;
   return{c,iw,ih,cols,rows,gut,pad,titleH,footH,footTxt,leg,hasT,hasI,logoD,showLogo,
     fsTitle,fsInd,fsFoot,fsBand,fsSub,bandT,bandB,subT,subB,bandTopY0,bandBottomY0,
-    bandLead,bandLeadSub,bandAirGrid,bandAirOut,
+    bandLead,bandLeadSub,bandAirGrid,bandAirOut,obsLines,
     titleGap,legInline,
     ox,oy,W,H};
 }
@@ -746,7 +756,13 @@ function draw(ctx,scale,L){
     ctx.fillText(`${cols} × ${rows}`,W-pad-gut,y);
     if(L.leg.length){
       if(L.legInline) drawLegend(x,y);
-      else drawLegend(pad+gut,y+fs*1.45);
+      else { y+=fs*1.45; drawLegend(pad+gut,y); }
+    }
+    if(L.obsLines.length){
+      ctx.textAlign="left"; ctx.fillStyle="#2A2A2A";
+      ctx.font=`500 ${fs}px ${FAM}`;
+      let oy2=y+fs*1.32;
+      L.obsLines.forEach(ln=>{ ctx.fillText(ln,pad+gut,oy2); oy2+=fs*1.32; });
     }
   }
   ctx.restore();
